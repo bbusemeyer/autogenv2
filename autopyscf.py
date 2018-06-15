@@ -6,6 +6,79 @@ import pyscf
 from pyscf.scf.uhf import UHF,mulliken_meta
 from copy import deepcopy
 
+##########################################################
+# Tools for handling basis set input.
+from xml.etree.ElementTree import ElementTree
+def edit_xml_basis(xml_name,symbols,min_exp=0.2,naug=2,alpha=3,
+                       cutoff=0.2,basis_name='vtz',
+                       nangular={"s":1,"p":1,"d":1,"f":1,"g":0}
+                       ):
+  ''' Read a basis from an xml and edit according to the cutoff and augment recipe.
+
+  Args:
+    xml (str): path to xml to modify (not in place).
+    symbols (list): elements to include in the basis.
+    min_exp (float): smallest exponent for augmented basis. 
+    naug (int): number of basis elements to add.
+    alpha (float): each successive augment has exponent multiplied by this. 
+    nangular (dict): number of BFD orbitals to keep. 
+  Returns
+    dict: Basis coefficients organized into a dict.
+  '''
+
+  allbasis={}
+
+  for symbol in symbols:
+    allbasis[symbol]=[]
+    transition_metals=["Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn"]
+    if symbol in transition_metals:
+      nangular['s']=max(nangular['s'],2)
+    tree = ElementTree()
+    tree.parse(xml_name)
+    element = tree.find('./Pseudopotential[@symbol="{}"]'.format(symbol))
+    basis_path = './Basis-set[@name="{}"]/Contraction'.format(basis_name)
+
+    # add in the first nangular basis functions.
+    found_orbitals = []  
+    for contraction in element.findall(basis_path):
+      angular = contraction.get('Angular_momentum')
+      if found_orbitals.count(angular) >= nangular[angular]:
+        continue
+      nterms = 0
+      basis_sec={'angular':angular,'primitives':[]}
+      for basis_term in contraction.findall('./Basis-term'):
+        exp = basis_term.get('Exp')
+        coeff = basis_term.get('Coeff')
+        if float(exp) > cutoff:
+          basis_sec['primitives'].append((exp, coeff))
+          nterms+=1
+      if nterms > 0:
+        allbasis[symbol].append(basis_sec)
+        found_orbitals.append(angular)
+
+    angular_uncontracted=['s','p']
+    if symbol in transition_metals:
+      angular_uncontracted.append('d')
+
+    for angular in angular_uncontracted:
+      for i in range(0,naug):
+        exp=min_exp*alpha**i
+        basis_sec={'angular':angular,'primitives':[(exp,1.0)]}
+        allbasis[symbol].append(basis_sec)
+  return allbasis
+
+####################################################
+def format_basis(bdict):
+  outlines=['{']
+  for atom in sorted(bdict):
+    outlines.append("    '%s':pyscf.gto.basis.parse('''"%atom)
+    for belement in bdict[atom]:
+      outlines.append("      %s %s"%(atom,belement['angular']))
+      for exp,coef in belement['primitives']:
+        outlines.append("        %s %s"%(exp,coef))
+    outlines.append("    '''),")
+  outlines.append('  }')
+  return '\n'.join(outlines)
 
 ####################################################
 class PySCFWriter:
@@ -13,7 +86,7 @@ class PySCFWriter:
     self.basis='bfd_vtz'
     self.charge=0
     self.completed=False
-    self.dft="" #Any valid input for PySCF. This gets put into the 'xc' variable
+    self.xc="" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
     self.ecp="bfd"
     self.level_shift=0.0
@@ -34,7 +107,6 @@ class PySCFWriter:
     self.cas={}
 
     # Used to name functions from conversion.
-    self.basename ='qw'
 
     # Default chosen by method at runtime.
     self.dm_generator=None
@@ -66,6 +138,7 @@ class PySCFWriter:
       for key in ['ncore','nelec','ncas','tol','method']:
         assert key in self.cas.keys(),"%s missing from 'cas' settings! "%key+\
             "Make sure all of 'ncore','nelec','ncas','tol','method' are set."
+
   #-----------------------------------------------
   def is_consistent(self,other):
     # dm_generator currently gets printed differently because of the dictionaries.
@@ -102,6 +175,12 @@ class PySCFWriter:
         print(self.__class__.__name__,": Warning--default guess not set for method=%s.\n Trying UHF."%self.method)
         self.dm_generator=dm_from_uhf_minao()
 
+    # Format the basis
+    if type(self.basis)!=str:
+      basisstr=format_basis(self.basis)
+    else:
+      basisstr="'%s'"%self.basis
+
     for i in self.pyscf_path:
       add_paths.append("sys.path.append('"+i+"')")
     outlines=[
@@ -113,9 +192,10 @@ class PySCFWriter:
         "from pyscf.dft.rks import RKS",
         "from pyscf.dft.roks import ROKS",
         "from pyscf.dft.uks import UKS",
+        "basis=%s"%basis,
         "mol=gto.Mole(verbose=4)",
         "mol.build(atom='''"+self.xyz+"''',",
-        "basis='%s',"%self.basis,
+        "basis=basis,"%basisstr,
         "ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge,
         "mol.spin=%i"%self.spin,
@@ -130,8 +210,8 @@ class PySCFWriter:
     if self.level_shift>0.0:
       outlines+=["m.level_shift=%g"%self.level_shift]
     
-    if self.dft!="":
-      outlines+=['m.xc="%s"'%self.dft]
+    if self.xc!="":
+      outlines+=['m.xc="%s"'%self.xc]
 
     outlines+=["print('E(HF) =',m.kernel(init_dm))"]
     outlines+=['print ("HF_done")']        
@@ -157,55 +237,7 @@ class PySCFWriter:
     self.completed=True
     #return fname,restart_fname, fname+".o",chkfile
      
-
 ####################################################
-
-from xml.etree.ElementTree import ElementTree
-
-def generate_pbc_basis(xml_name,symbol,min_exp=0.2,naug=2,alpha=3,
-                       cutoff=0.2,basis_name='vtz',
-                       nangular={"s":1,"p":1,"d":1,"f":1,"g":0}
-                       ):
-  transition_metals=["Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn"]
-  if symbol in transition_metals:
-    nangular['s']=min(nangular['s'],2)
-  tree = ElementTree()
-  tree.parse(xml_name)
-  element = tree.find('./Pseudopotential[@symbol="{}"]'.format(symbol))
-  basis_path = './Basis-set[@name="{}"]/Contraction'.format(basis_name)
-  allbasis=[]
-
-  # add in the first nangular basis functions.
-  found_orbitals = []  
-  for contraction in element.findall(basis_path):
-    angular = contraction.get('Angular_momentum')
-    if found_orbitals.count(angular) >= nangular[angular]:
-      continue
-    nterms = 0
-    basis_sec=symbol+" " + angular +"\n"
-    for basis_term in contraction.findall('./Basis-term'):
-      exp = basis_term.get('Exp')
-      coeff = basis_term.get('Coeff')
-      if float(exp) > cutoff:
-        basis_sec += '  {} {} \n'.format(exp, coeff)
-        nterms+=1
-    if nterms > 0:
-      allbasis.append(basis_sec)
-      found_orbitals.append(angular)
-
-  angular_uncontracted=['s','p']
-  if symbol in transition_metals:
-    angular_uncontracted.append('d')
-
-  for angular in angular_uncontracted:
-    for i in range(0,naug):
-      exp=min_exp*alpha**i
-      #print(symbol,angular)
-      basis_sec=symbol+ " " + angular + "\n"
-      basis_sec+='{} {}\n'.format(exp,1.0)
-      allbasis.append(basis_sec)
-  #print(" ".join(allbasis))
-  return " ".join(allbasis)
   
 ####################################################
 class PySCFPBCWriter:
@@ -213,7 +245,7 @@ class PySCFPBCWriter:
     self.charge=0
     self.cif=''
     self.completed=False
-    self.dft="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
+    self.xc="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
     self.ecp="bfd"
     self.level_shift=0.0
@@ -223,17 +255,13 @@ class PySCFPBCWriter:
     self.direct_scf_tol=1e-7
     self.pyscf_path=[]
     self.spin=0
-    self.gmesh=[4,4,4]
+    self.gmesh=None
     self.xyz=""
     self.latticevec=""
     self.kpts=[2,2,2]
-    self.bfd_library="BFD_Library.xml"
-    self.basis_parameters={'cutoff':0.2,'basis_name':'vtz',
-                          'naug':2,'alpha':3,'min_exp':0.2 } 
-    self.special_basis={}
+    self.basis='bfd_vtz'
+    self.remove_linear_dep=False
     
-    self.basename ='qw'
-
     # Default chosen by method at runtime.
     self.dm_generator=None
 
@@ -251,17 +279,12 @@ class PySCFPBCWriter:
 
     #print(struct['sites'])
     self.xyz=""
-    elements=set()
+    self.elements=set()
     for s in struct['sites']:
       if len(s['species']) > 1:
         print("More than one species per site.. Taking the first.")
       self.xyz+=s['species'][0]['element']+" " + " ".join(map(str,s['xyz'])) + "\n"
-      elements.add(s['species'][0]['element'])
-
-    for e in elements:
-      self.special_basis[e]=generate_pbc_basis(self.bfd_library,e,**self.basis_parameters)
-    #print(self.xyz)
-    
+      self.elements.add(s['species'][0]['element'])
     
   #-----------------------------------------------
     
@@ -297,6 +320,11 @@ class PySCFPBCWriter:
     re_f = open(restart_fname, 'w')
     add_paths=[]
 
+    if type(self.basis)!=str:
+      basisstr=format_basis(self.basis)
+    else:
+      basisstr="'%s'"%self.basis
+
     # Figure out correct default initial guess (if not set).
     if self.dm_generator is None:
       if self.method in ['RKS','RHF','ROHF']:
@@ -315,6 +343,7 @@ class PySCFPBCWriter:
       ] + add_paths + [
         "import pyscf",
         "import numpy",
+        "from pyscf.scf.addons import remove_linear_dep_",
         "from pyscf.pbc import gto,scf",
         "from pyscf.pbc.scf import KRHF as RHF",
         "from pyscf.pbc.scf import KUHF as UHF",
@@ -322,21 +351,22 @@ class PySCFPBCWriter:
         "from pyscf.pbc.dft import KUKS as UKS"
       ]
 
+    if self.gmesh is not None:
+      gmesh=["  mesh="+str(self.gmesh)+","]
+    else:
+      gmesh=[]
+
     #The basis
-    outlines+=["basis={"]
-    for el in self.special_basis.keys():
-      outlines+=["'"+el+"':pyscf.gto.basis.parse('''"]
-      outlines+=[self.special_basis[el] + "'''),"]
-    outlines+=['}']
+    outlines+=["basis=%s"%basisstr]
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "mesh="+str(self.gmesh)+",",
-        "atom='''"+self.xyz+"''',",
-        "a='''"+str(self.latticevec) +"''',",
-        "basis=basis,",
-        "spin=%i,"%self.spin,
-        "ecp='%s')"%self.ecp,
+        "  atom='''"+self.xyz+"''',",
+        ]+gmesh+[
+        "  a='''"+str(self.latticevec) +"''',",
+        "  basis=basis,",
+        "  spin=%i,"%self.spin,
+        "  ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge
         ]
     #Set up k-points
@@ -362,8 +392,11 @@ class PySCFPBCWriter:
     if self.level_shift>0.0:
       outlines+=["m.level_shift=%g"%self.level_shift]
     
-    if self.dft!="":
-      outlines+=['m.xc="%s"'%self.dft]
+    if self.xc!="":
+      outlines+=['m.xc="%s"'%self.xc]
+
+    if self.remove_linear_dep:
+      outlines+=['m=remove_linear_dep_(m)']
 
     outlines+=["print('E(HF) =',m.kernel(numpy.array(dm_kpts)))"]
     outlines += ['print ("All_done")']

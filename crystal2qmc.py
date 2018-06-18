@@ -17,8 +17,8 @@ periodic_table = [
 ]
 
 ###############################################################################
-# Reads in the geometry, basis, and pseudopotential from GRED.DAT.
 def read_gred(gred="GRED.DAT"):
+  ''' Reads in the geometry, basis, and pseudopotential from GRED.DAT.'''
   lat_parm = {}
   ions = {}
   basis = {}
@@ -172,8 +172,8 @@ def read_gred(gred="GRED.DAT"):
   return info, lat_parm, ions, basis, pseudo
 
 ###############################################################################
-# Reads in kpoints and eigen{values,vectors} from KRED.DAT.
 def read_kred(info,basis,kred="KRED.DAT"):
+  ''' Reads in kpoints and eigen{values,vectors} from KRED.DAT.'''
   eigsys = {}
 
   kred = open(kred)
@@ -299,10 +299,8 @@ def read_kred(info,basis,kred="KRED.DAT"):
   return eigsys
 
 ###############################################################################
-# Reads total spin from output file. 
-# TODO Is there a way around this? Yes.
-# Alternatively, this can read the CRYSTAL output file and still works!
 def read_outputfile(fname = "prop.in.o"):
+  ''' Reads total spin from output file. '''
   fin = open(fname,'r')
   for line in fin:
     if "SUMMED SPIN DENSITY" in line:

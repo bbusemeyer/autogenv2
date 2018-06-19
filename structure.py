@@ -1,4 +1,5 @@
 from pymatgen.io.xyz import XYZ
+import numpy as np
 periodic_table = [
   "h","he","li","be","b","c","n","o","f","ne","na","mg","al","si","p","s","cl","ar",
   "k","ca","sc","ti","v","cr","mn","fe","co","ni","cu","zn","ga","ge","as","se","br",
@@ -109,7 +110,7 @@ class Structure:
           })
     for key in 'alpha','beta','gamma','a','b','c':
       self.latparm[key]=pydict['lattice'][key]
-    self.latparm['latvecs']=pydict['lattice']['matrix']
+    self.latparm['latvecs']=np.array(pydict['lattice']['matrix'])*bohr
 
   # This is the safer import method for now.
   import_cif=import_cif_pymatgen
@@ -224,7 +225,7 @@ class Structure:
           "  latticevec {",
         ]
       for i in range(3):
-        outlines.append("    {:< 15} {:< 15} {:< 15}".format(*[lc*bohr for lc in self.latparm['latvecs'][i]]))
+        outlines.append("    {:< 15} {:< 15} {:< 15}".format(*[lc for lc in self.latparm['latvecs'][i]]))
       outlines += [
           "  }",
           "  origin { 0 0 0 }",
@@ -293,4 +294,3 @@ class Structure:
         ))
       outlines += ["    }","  }","}"]
     return outlines
-

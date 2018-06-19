@@ -1,6 +1,8 @@
 from __future__ import division,print_function
 import numpy as np
 import sys
+from structure import Structure
+from orbitals import Orbitals
 
 def error(message,errortype):
   print(message)
@@ -19,6 +21,7 @@ periodic_table = [
 ###############################################################################
 def read_gred(gred="GRED.DAT"):
   ''' Reads in the geometry, basis, and pseudopotential from GRED.DAT.'''
+
   lat_parm = {}
   ions = {}
   basis = {}
@@ -61,7 +64,7 @@ def read_gred(gred="GRED.DAT"):
 
   # Some of ion information.
   natoms = info[23]
-  ions['charges'] = [float(w) for w in gred_words[cursor:cursor+natoms]]
+  ions['charges'] = np.array(gred_words[cursor:cursor+natoms],dtype=float)
   cursor += natoms
   # Atom positions.
   atom_poss = np.array(gred_words[cursor:cursor+3*natoms],dtype=float)
@@ -297,6 +300,81 @@ def read_kred(info,basis,kred="KRED.DAT"):
   eigsys['eigvecs'] = eigvecs
 
   return eigsys
+
+###############################################################################
+def format_pseudo(oldps,oldions):
+  ''' Rearrage the pseudopotential data for structure object.'''
+  newps={}
+  count=0
+  for num in oldps:
+    data=oldps[num]
+    species=periodic_table[num%200-1].capitalize()
+
+    charge=oldions['charges'][oldions['atom_nums']==num][0]
+
+    newps[species]={'local':[],'nonlocal':[],'core_charge':charge}
+
+    # Local components.
+    for i in range(data['n_per_j'][0]):
+      newps[species]['local'].append({
+          'r_to_n':data['r_exps'][count],
+          'exp':data['exponents'][count],
+          'coef':data['prefactors'][count]
+        })
+      count+=1
+    # Nonlocal components.
+    for ang,number in enumerate(data['n_per_j'][1:]):
+      for i in range(number):
+        newps[species]['nonlocal'].append({
+            'r_to_n':data['r_exps'][count],
+            'exp':data['exponents'][count],
+            'coef':data['prefactors'][count],
+            'angular':ang
+          })
+        count+=1
+  return newps
+
+###############################################################################
+def format_positions(ions):
+  ''' Rearrage the pseudopotential data for structure object.'''
+  positions=[]
+  for num,pos in zip(ions['atom_nums'],ions['positions']):
+    species=periodic_table[num%200-1].capitalize()
+    positions.append({
+        'species':species,
+        'xyz':pos
+      })
+  return positions
+
+
+###############################################################################
+def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
+  ''' Create Structure and Orbitals objects from Crystal results. 
+  These objects can generate QWalk input files.
+
+  Args: 
+    gred (str): path to GRED.DAT.
+    kred (str): path to KRED.DAT.
+  Returns:
+    struct (Structure): Structure object.
+    orbs (Orbitals): Orbitals object.
+  '''
+  # This is the pretty-much raw data from the Crystal output files.
+  info, lat_parm, ions, basis, pseudo = read_gred(gred)
+  eigsys = read_kred(info,basis,kred)
+
+  struct=Structure()
+  orbs=Orbitals()
+
+  # For now doing a straight copy. Might be better to do some additional formatting later.
+  struct.latparm={'latvecs':lat_parm['latvecs']}
+  struct.pseudo=format_pseudo(pseudo,ions)
+  struct.positions=format_positions(ions)
+
+  orbs.basis=basis
+  orbs.eigsys=eigsys
+
+  return struct,orbs
 
 ###############################################################################
 def read_outputfile(fname = "prop.in.o"):

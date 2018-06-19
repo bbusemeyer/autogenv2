@@ -8,6 +8,7 @@ periodic_table = [
   "fr","ra","ac","th","pa","u","np","pu","am","cm","bk","cf","es","fm","md","no","lr",
   "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
 ]
+bohr=1.88972598858 # in Angstroms
 
 ###########################################################################################
 def scrub_err(numstr):
@@ -94,9 +95,10 @@ class Structure:
     ''' Import the positions and lattice parameters from CIF file using pymatgen.
     This importer generates all symmetry inequivilent positions here, but cannot handle symmetry.'''
     from pymatgen.io.cif import CifParser
-    pystruct=CifParser.from_string(cifstr).get_structures(primitive=primitive)[0].as_dict()
+    from pymatgen.core.periodic_table import Element
+    pydict=CifParser.from_string(cifstr).get_structures(primitive=primitive)[0].as_dict()
 
-    for site in pystruct['sites']:
+    for site in pydict['sites']:
       assert len(site['species'])==1,\
           'Multiple site not tested. Check this works ok and remove this assertion.'
       element=site['species'][0]['element']
@@ -106,7 +108,8 @@ class Structure:
             'xyz':[float(c) for c in site['xyz']]
           })
     for key in 'alpha','beta','gamma','a','b','c':
-      self.latparm[key]=pystruct['lattice'][key]
+      self.latparm[key]=pydict['lattice'][key]
+    self.latparm['latvecs']=pydict['lattice']['matrix']
 
   # This is the safer import method for now.
   import_cif=import_cif_pymatgen
@@ -114,7 +117,12 @@ class Structure:
   # ----------------------------------------------------------------------------------------
   def import_cif_raw(self,ciffn):
     ''' Import the positions and lattice parameters from CIF file.
-    This importer relies on the code to produce symmetry inequivilent points, but can handle symmetry.'''
+    This importer relies on the code to produce symmetry inequivilent points, but can handle symmetry.
+    This also doesn't provide lattice vectors and the like, so you'll need a different routine to get those.
+    pymatgen can generate them based off the lengths and angles.
+
+    Nonetheless you can use this to generate a crystal output with symmetry.
+    '''
     from CifFile import CifFile,ReadCif
 
     struct=ReadCif(ciffn)
@@ -152,6 +160,7 @@ class Structure:
       tree.parse(xml_name)
       element = tree.find('./Pseudopotential[@symbol="{}"]'.format(species))
       eff_core_charge = element.find('./Effective_core_charge').text
+      pseudo['core_charge']=eff_core_charge
       local_path = './Gaussian_expansion/Local_component'
       non_local_path = './Gaussian_expansion/Non-local_component'
       local_list = element.findall(local_path)
@@ -197,10 +206,91 @@ class Structure:
     return geomlines
 
   # ----------------------------------------------------------------------------------------
-  def export_qwalk_sys(self,nspin):
+  def export_qwalk_sys(self,cutoff_divider,nspin,kpoint=(0.0,0.0,0.0)):
     ''' Generate a system section for QWalk.
     Args:
-      nspin (tuple): Number of up and down electrons in the system.
+      cutoff divider (float): calculate using Basis object.
+      kpoint (tuple): boundary condition.
     Returns: 
       list: List of the lines (str) making up the qwalk system section.
     '''
+    outlines = []
+
+    # Assumes 0-d or 3-d here.
+    if self.latparm != {}:
+      outlines += [
+          "system { periodic",
+          "  nspin {{ {} {} }}".format(*nspin),
+          "  latticevec {",
+        ]
+      for i in range(3):
+        outlines.append("    {:< 15} {:< 15} {:< 15}".format(*[lc*bohr for lc in self.latparm['latvecs'][i]]))
+      outlines += [
+          "  }",
+          "  origin { 0 0 0 }",
+          "  cutoff_divider {0}".format(cutoff_divider),
+          "  kpoint {{ {:4}   {:4}   {:4} }}".format(*kpoint)
+        ]
+    else: # is molecule.
+      outlines += [
+          "system { molecule",
+          "  nspin {{ {} {} }}".format(*nspin)
+        ]
+    for position in self.positions:
+      if position['species'] in self.pseudo:
+        charge=self.pseudo[position['species']]['core_charge']
+      else:
+        assert 0, "Check part and delete this assertion!"
+        charge=periodic_table.find(position['species'])+1
+      outlines.append(
+        "  atom {{ {0} {1} coor {2} }}".format(
+          position['species'],
+          charge,
+          "{:< 15} {:< 15} {:< 15}".format(*[p for p in position['xyz']])
+        )
+      )
+    outlines.append("}")
+    done = []
+    for species in self.pseudo:
+      nonlocal_counts=[0,0,0,0,0,0] # Extra long to be safe.
+      for term in self.pseudo[species]['nonlocal']:
+        nonlocal_counts[term['angular']]+=1
+      for idx in range(len(nonlocal_counts)-1):
+        assert nonlocal_counts[idx]!=0 or nonlocal_counts[idx+1]==0,\
+          'Not sure if QWalk can handle a pseudopotential like this,'
+      nonlocal_counts=[c for c in nonlocal_counts if c>0]
+      num_types=1 + len(nonlocal_counts)
+
+      if num_types > 2: aip = 12
+      else:             aip =  6
+
+      outlines += [
+          "pseudo {",
+          "  {}".format(species),
+          "  aip {:d}".format(aip),
+          "  basis {{ {}".format(species),
+          "    rgaussian",
+          "    oldqmc {",
+          "      0.0 {:d}".format(num_types),
+          "      "+' '.join(["{}" for i in range(num_types)])\
+              .format(*(nonlocal_counts+[len(self.pseudo[species]['local'])]))
+        ]
+      last=-1
+      for gaussian in self.pseudo[species]['nonlocal']:
+        assert gaussian['angular']>last,\
+            "Wait, I thought the order is always ascending! Well this part needs some more code."
+        last=gaussian['angular']
+        outlines.append("      {:d}   {:<12} {:< 12}".format(
+          gaussian['r_to_n']+2,
+          gaussian['exp'],
+          gaussian['coef']
+        ))
+      for gaussian in self.pseudo[species]['local']:
+        outlines.append("      {:d}   {:<12} {:< 12}".format(
+          gaussian['r_to_n']+2,
+          gaussian['exp'],
+          gaussian['coef']
+        ))
+      outlines += ["    }","  }","}"]
+    return outlines
+

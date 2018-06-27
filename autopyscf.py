@@ -223,14 +223,7 @@ class PySCFWriter:
                    'print ("PostHF_done")']
     outlines += ['print ("All_done")']
 
-    restart_outlines=[] 
-    for line in  outlines: 
-      if 'mc.kernel(' in line:
-        restart_outlines += ["mc.__dict__.update(lib.chkfile.load('%s', 'mcscf'))\n"%chkfile]
-      restart_outlines += [line]  
-
     f.write('\n'.join(outlines))
-    re_f.write('\n'.join(restart_outlines))
 
     self.completed=True
      

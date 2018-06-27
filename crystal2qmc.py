@@ -1,8 +1,8 @@
 from __future__ import division,print_function
 import numpy as np
 import sys
-from structure import Structure
-from orbitals import Orbitals
+from autostruct import Structure
+from autoorb import Orbitals
 
 def error(message,errortype):
   print(message)
@@ -346,6 +346,46 @@ def format_positions(ions):
       })
   return positions
 
+###############################################################################
+def format_basis(ions,basis):
+  ''' Rearrange the basis data to be more usable.'''
+  newbasis={}
+
+  hybridized_check = 0.0
+  hybridized_check += sum(abs(basis['coef_s'] * basis['coef_p']))
+  hybridized_check += sum(abs(basis['coef_p'] * basis['coef_dfg']))
+  hybridized_check += sum(abs(basis['coef_s'] * basis['coef_dfg']))
+  if hybridized_check > 1e-10:
+    error("Hybridized AOs (like sp) not implmemented in write_basis(...)",
+          "Not implemented.")
+
+  # If there's no hybridization, at most one of coef_s, coef_p, and coef_dfg is
+  # nonzero. Just add them, so we have one array.
+  coefs = basis['coef_s'] + basis['coef_p'] + basis['coef_dfg']
+
+  shell_type = np.tile("Unknown...",basis['shell_type'].shape)
+  typemap = ["S","SP","P","5D","7F_crystal","G","H"]
+  for i in range(6): shell_type[basis['shell_type']==i] = typemap[i]
+
+  slicepoints=np.insert(basis['prim_shell'].cumsum(),0,0)
+
+  for atidx in set(basis['atom_shell']):
+    species=periodic_table[ions['atom_nums'][atidx-1]%200-1].capitalize()
+    if species in newbasis: continue
+
+    sel=basis['atom_shell']==atidx
+    newbasis[species]=[
+        {
+          'angular':angular,
+          'exponents':basis['prim_gaus'][start:start+num],
+          'coefs':coefs[start:start+num]
+        } for start,num,angular in zip(
+        basis['first_prim'][sel]-1,
+        basis['prim_shell'][sel],
+        shell_type[sel])
+      ]
+
+  return newbasis
 
 ###############################################################################
 def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
@@ -371,7 +411,7 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
   struct.pseudo=format_pseudo(pseudo,ions)
   struct.positions=format_positions(ions)
 
-  orbs.basis=basis
+  orbs.basis=format_basis(ions,basis)
   orbs.eigsys=eigsys
 
   return struct,orbs

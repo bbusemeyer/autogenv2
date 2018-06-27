@@ -9,15 +9,17 @@ class Orbitals:
   #----------------------------------------------------------------------------------------------
   def __init__(self):
     self.basis={}
-    self.eigsys={}
+    self.eigvecs={}
+    self.eigvals={}
+    self.is_complex={}
+    self.atom_order=()
+    self.kpt_weights={}
 
   #----------------------------------------------------------------------------------------------
   def export_qwalk_basis(self):
     ''' Generate a basis section for QWalk.
-
-    Args:
     Returns:
-      list: lines pertaining to system section.
+      list: lines pertaining to basis section.
     '''
     outlines=[]
 
@@ -38,40 +40,35 @@ class Orbitals:
     outlines+=['  }','}']
     return outlines
   #----------------------------------------------------------------------------------------------
-  def write_orb(self,kpt,outfn,maxmo_spin=-1):
+  def write_orb(self,kpt,outfn):#,maxmo_spin=-1):
     ''' Generate a orb file for QWalk. 
     This just writes to the file because the orbital sections are often quite large.
 
     Args:
       kpt (tuple): kpoint coordinate of the orbitals. See self.eigsys for options.
       outfn (str): file to write to.
-      maxmo_spin (int): Number of orbitals to print for each both spin channels.
+      maxmo_spin (int): TODO Number of orbitals to print for each spin channel.
         You should set this to the maximum over the two channels.
     '''
     outf=open(outfn,'w')
-    if maxmo_spin < 0:
-      maxmo_spin=basis['nmo']
 
-    eigvecs_real = self.eigsys['eigvecs'][kpt]['real']
-    eigvecs_imag = self.eigsys['eigvecs'][kpt]['imag']
-    atidxs = np.unique(basis['atom_shell'])-1
-    nao_atom = np.zeros(atidxs.size,dtype=int)
-    for shidx in range(len(basis['nao_shell'])):
-      nao_atom[basis['atom_shell'][shidx]-1] += basis['nao_shell'][shidx]
-    #nao_atom = int(round(sum(basis['nao_shell']) / len(ions['positions'])))
-    coef_cnt = 1
-    totnmo = maxmo_spin*self.eigsys['nspin'] #basis['nmo'] * eigsys['nspin']
-    for moidx in np.arange(totnmo)+1:
-      for atidx in atidxs+1:
-        for aoidx in np.arange(nao_atom[atidx-1])+1:
-          outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
-              .format(moidx,aoidx,atidx,coef_cnt))
+    num_angular={'S':1,'P':3,'5D':5,'7F_crystal':7,'G':9,'H':11}
+
+    nmo=len(self.eigvecs[(0,0,0)]['real'])*self.eigvecs[(0,0,0)]['real'][0].shape[0]
+
+    coef_cnt=0
+    for moidx in range(nmo):
+      for atidx,atom in enumerate(self.atom_order):
+        nao=sum(( num_angular[element['angular']] for element in self.basis[atom] ))
+        for aoidx in range(nao):
           coef_cnt += 1
-    eigreal_flat = [e[0:maxmo_spin,:].flatten() for e in eigvecs_real]
-    eigimag_flat = [e[0:maxmo_spin,:].flatten() for e in eigvecs_imag]
+          outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
+              .format(moidx+1,aoidx+1,atidx+1,coef_cnt))
+    eigreal_flat = [e[0:,:].flatten() for e in self.eigvecs[kpt]['real']]
+    eigimag_flat = [e[0:,:].flatten() for e in self.eigvecs[kpt]['imag']]
     print_cnt = 0
     outf.write("COEFFICIENTS\n")
-    if self.eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
+    if self.is_complex[kpt]: #complex coefficients
       for eigr,eigi in zip(eigreal_flat,eigimag_flat):
         for r,i in zip(eigr,eigi):
           outf.write("({:<.12e},{:<.12e}) "\
@@ -84,3 +81,4 @@ class Orbitals:
           outf.write("{:< 15.12e} ".format(r))
           print_cnt+=1
           if print_cnt%5==0: outf.write("\n")
+    outf.close()

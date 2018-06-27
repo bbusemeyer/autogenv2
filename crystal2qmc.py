@@ -406,18 +406,21 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
   struct=Structure()
   orbs=Orbitals()
 
-  # For now doing a straight copy. Might be better to do some additional formatting later.
   struct.latparm={'latvecs':lat_parm['latvecs']}
   struct.pseudo=format_pseudo(pseudo,ions)
   struct.positions=format_positions(ions)
 
   orbs.basis=format_basis(ions,basis)
-  orbs.eigsys=eigsys
+  orbs.eigvals=eigsys['eigvals']
+  orbs.eigvecs=eigsys['eigvecs']
+  orbs.is_complex=eigsys['ikpt_iscmpx']
+  orbs.kpt_weights=eigsys['kpt_weights']
+  orbs.atom_order=[periodic_table[n%200-1].capitalize() for n in ions['atom_nums']]
 
   return struct,orbs
 
 ###############################################################################
-def read_outputfile(fname = "prop.in.o"):
+def read_outputfile(fname="prop.in.o"):
   ''' Reads total spin from output file. '''
   fin = open(fname,'r')
   for line in fin:

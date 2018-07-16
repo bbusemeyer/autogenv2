@@ -1,6 +1,9 @@
 from __future__ import division,print_function
 import numpy as np
 import sys
+# lxml can be installed through pip, for example.
+# It mirrors python xml interface, but uses the C libraries to do the brute work.
+from lxml.etree import XMLParser,parse
 
 def error(message,errortype):
   print(message)
@@ -15,6 +18,58 @@ periodic_table = [
   "fr","ra","ac","th","pa","u","np","pu","am","cm","bk","cf","es","fm","md","no","lr",
   "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
 ]
+
+###############################################################################
+# Reads CRYSTAL data from the xml produced by properties.
+
+# `with` statements should cut down on memory useage, and maybe keep things
+# better organized.
+def read_xml(xml='xml'):
+  ''' Read the data from the CRYSTAL run from the xml.'''
+  
+  # In it's current state, CRYSTAL only provides the following in the XML. 
+  # You need to get the basis set and ECP info from the GRED.DAT.
+
+  # This data will be filled in:
+  data={
+      'geometry':None,
+      'eigensystem':None,
+    }
+
+  root=parse(xml).getroot()
+  data['geometry']=read_xml_geom(root.find('GEOMETRY')))
+  data['eigensystem']=read_xml_eigen(root.find(:q
+
+def read_xml_geom(geom_node):
+  ''' Read the geometry section data from the geometry node of XML.'''
+  data={
+      'periodic_directions':None,
+      'latvec':None,
+      'species_list':None,
+      'cartesian_coords':None,
+      'fractional_coords':None
+      }
+
+  periodic=geom_node.find('PERIODICITY')
+  data['periodic_directions']=periodic.find('PERIODIC_DIRECTIONS').text.split()
+  if len(data['periodic_directions'])==3:
+    cell=periodic.find('CELL')
+    data['latvec']=np.array((
+        cell.find('CELL_VECTOR_A').text.split(),
+        cell.find('CELL_VECTOR_B').text.split(),
+        cell.find('CELL_VECTOR_C').text.split()),
+        dtype='float'
+      )
+  
+  atoms=geom_node.find('ATOMS')
+  cartesian=atoms.find('CARTESIAN_COORDINATES')
+  atnodes=[
+      cartesian.find('ATOM.%d'%(atnum+1))
+      for atnum in range(int(cartesian.attrib['number_of_items']))
+    ]
+  data['species_list']=[node.attrib['atomic_symbol'] for node in atnodes]
+  data['cartesian_coords']=np.array([node.text.split() for node in atnodes],dtype=float)
+  return data
 
 ###############################################################################
 # Reads in the geometry, basis, and pseudopotential from GRED.DAT.

@@ -164,7 +164,7 @@ def format_eigenstates_mol(mol,cryeigsys,basis_order=None):
   '''
 
   # Extract.
-  crydfs=[pd.DataFrame(np.array(cryeigsys['eigvecs'][(0,0,0)]['real'][s]).T) for s in [0,1]]
+  crydfs=[pd.DataFrame(crystal2qmc.eigvec_lookup((0,0,0),cryeigsys,s).T) for s in [0,1]]
 
   # PySCF basis order (our goal).
   pydf=pd.DataFrame(mol.sph_labels(fmt=False),columns=['atnum','elem','orb','type'])
@@ -223,7 +223,7 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
 
   # Extract.
   # TODO non-Gamma points.
-  crydfs=[pd.DataFrame(np.array(cryeigsys['eigvecs'][(0,0,0)]['real'][s]).T) for s in [0,1]]
+  crydfs=[pd.DataFrame(crystal2qmc.eigvec_lookup((0,0,0),cryeigsys,s).T) for s in [0,1]]
 
   # PySCF basis order (our goal).
   pydf=pd.DataFrame(cell.sph_labels(fmt=False),columns=['atnum','elem','orb','type'])

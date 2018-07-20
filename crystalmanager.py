@@ -272,7 +272,7 @@ class CrystalManager:
         self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
 
         if not self.bundle:
-          qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+          qsubfile=self.prunner.submit(self.path.replace('/','-')+self.name)
       elif status=='ready_for_analysis':
         self.preader.collect(self.propoutfn)
 

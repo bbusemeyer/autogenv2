@@ -129,7 +129,7 @@ class QWalkManager:
 
     # Ready for bundler or else just submit the jobs as needed.
     if not self.bundle:
-      qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+      qsubfile=self.runner.submit()
 
     # Update the file.
     with open(self.pickle,'wb') as outf:

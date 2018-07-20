@@ -191,7 +191,7 @@ class CrystalManager:
 
     # Ready for bundler or else just submit the jobs as needed.
     if not self.bundle:
-      qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+      qsubfile=self.runner.submit()
 
     self.completed=self.creader.completed
 
@@ -211,7 +211,7 @@ class CrystalManager:
   #----------------------------------------
   def submit(self):
     ''' Submit any work and update the manager.'''
-    qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+    qsubfile=self.runner.submit()
 
     self.update_pickle()
 
@@ -272,7 +272,7 @@ class CrystalManager:
         self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
 
         if not self.bundle:
-          qsubfile=self.prunner.submit(self.path.replace('/','-')+self.name)
+          qsubfile=self.prunner.submit()
       elif status=='ready_for_analysis':
         self.preader.collect(self.propoutfn)
 

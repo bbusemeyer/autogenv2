@@ -33,7 +33,7 @@ class CrystalManager:
 
     # Ensure path is set up correctly.
     if path is None:
-      path=os.path.getcwd()
+      path=os.getcwd()
     if path[-1]!='/': path+='/'
     self.path=path
 
@@ -58,8 +58,6 @@ class CrystalManager:
     self.crysoutfn=self.crysinpfn+'.o'
     self.propoutfn=self.propinpfn+'.o'
     self.restarts=0
-    self._runready=False
-    self.scriptfile=None
     self.completed=False
     self.bundle=bundle
     self.qwfiles={ 
@@ -99,14 +97,14 @@ class CrystalManager:
         skip_keys=['writer','runner','creader','preader','prunner','lev','savebroy',
                    'path','logname','name',
                    'trylev','max_restarts','bundle'],
-        take_keys=['restarts','completed','qwfiles'])
+        take_keys=['restarts','completed','qwfiles','bundle_ready','scriptfile'])
 
     # Update queue settings, but save queue information.
     update_attributes(copyto=self.runner,copyfrom=other.runner,
-        skip_keys=['queue','walltime','np','nn','jobname'],
+        skip_keys=['queue','walltime','np','nn','jobname','mode','account','prefix','postfix'],
         take_keys=['queueid'])
     update_attributes(copyto=self.prunner,copyfrom=other.prunner,
-        skip_keys=['queue','walltime','np','nn','jobname'],
+        skip_keys=['queue','walltime','np','nn','jobname','mode','account','prefix','postfix'],
         take_keys=['queueid'])
 
     update_attributes(copyto=self.creader,copyfrom=other.creader,
@@ -171,7 +169,7 @@ class CrystalManager:
           self.writer.guess_fort='./fort.79'
           sh.copy(self.writer.guess_fort,'fort.20')
           self.writer.write_crys_input(self.crysinpfn)
-          sh.copy(self.crysinpfn,'INPUT')
+          self.runner.add_command("cp %s INPUT"%self.crysinpfn)
           self.runner.add_task("%s &> %s"%(paths['Pcrystal'],self.crysoutfn))
           self.restarts+=1
     elif status=='done' and self.lev:
@@ -192,11 +190,8 @@ class CrystalManager:
       self.restarts+=1
 
     # Ready for bundler or else just submit the jobs as needed.
-    if self.bundle:
-      self.scriptfile="%s.run"%self.name
-      self.bundle_ready=self.runner.script(self.scriptfile)
-    else:
-      qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+    if not self.bundle:
+      qsubfile=self.runner.submit()
 
     self.completed=self.creader.completed
 
@@ -211,26 +206,39 @@ class CrystalManager:
     print(self.logname,": collecting results.")
     self.creader.collect(self.path+self.crysoutfn)
 
-    # Update the file.
-    with open(self.path+self.pickle,'wb') as outf:
-      pkl.dump(self,outf)
+    self.update_pickle()
 
-  #------------------------------------------------
-  def script(self,jobname=None):
-    ''' Script execution lines for a bundler to pick up and run.'''
-    if jobname is None: jobname=self.runner.jobname
-    self.scriptfile="%s.run"%jobname
-    self._runready=self.runner.script(self.scriptfile)
+  #----------------------------------------
+  def submit(self):
+    ''' Submit any work and update the manager.'''
+    qsubfile=self.runner.submit()
 
-  #------------------------------------------------
-  def submit(self,jobname=None):
-    ''' Submit the runner's job to the queue. '''
-    qsubfile=self.runner.submit(jobname)
+    self.update_pickle()
+
     return qsubfile
 
   #----------------------------------------
-  def to_json(self):
-    raise NotImplementedError
+  def release_commands(self):
+    ''' Release the runner of any commands it was tasked with and update the manager.'''
+    commands=self.runner.release_commands()
+    self.update_pickle()
+
+    return commands
+
+  #------------------------------------------------
+  def update_queueid(self,qid):
+    ''' If a bundler handles the submission, it can update the queue info with this.
+    Args:
+      qid (str): new queue id from submitting a job. The Manager will check if this is running.
+    '''
+    self.runner.queueid.append(qid)
+    self.update_pickle()
+
+  #------------------------------------------------
+  def update_pickle(self):
+    ''' If you make direct changes to the internals of the pickle, you need to call this to insure they are saved.'''
+    with open(self.path+self.pickle,'wb') as outf:
+      pkl.dump(self,outf)
 
   #----------------------------------------
   def write_summary(self):
@@ -263,11 +271,8 @@ class CrystalManager:
         self.prunner.add_command("cp %s INPUT"%self.propinpfn)
         self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
 
-        if self.bundle:
-          self.scriptfile="%s.run"%self.name
-          self.bundle_ready=self.prunner.script(self.scriptfile,self.driverfn)
-        else:
-          qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+        if not self.bundle:
+          qsubfile=self.prunner.submit()
       elif status=='ready_for_analysis':
         self.preader.collect(self.propoutfn)
 
@@ -283,8 +288,7 @@ class CrystalManager:
     else:
       ready=True
 
-    with open(self.path+self.pickle,'wb') as outf:
-      pkl.dump(self,outf)
+    self.update_pickle()
 
     return ready
     

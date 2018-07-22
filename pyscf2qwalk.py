@@ -535,7 +535,8 @@ def print_qwalk_pbc(cell,mf,method='scf',tol=0.01,basename='qw'):
       'jastrow2':basename+".jast2",
       'orb':["%s_%i.orb"%(basename,nk) for nk in range(mf.kpts.shape[0])],
       'sys':["%s_%i.sys"%(basename,nk) for nk in range(mf.kpts.shape[0])],
-      'slater':["%s_%i.slater"%(basename,nk) for nk in range(mf.kpts.shape[0])]
+      'slater':["%s_%i.slater"%(basename,nk) for nk in range(mf.kpts.shape[0])],
+      'kpoints':mf.kpts
     }
 
   print_basis(cell,open(files['basis'],'w'))

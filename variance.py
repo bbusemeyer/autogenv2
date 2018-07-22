@@ -68,30 +68,33 @@ class VarianceReader:
   #------------------------------------------------
   def read_outputfile(self,outfile):
     ret={}
-    ret['sigma']=[]
+    ret['sigma_trace']=[]
     with open(outfile,'r') as f:
       for line in f:
         if 'dispersion' in line:
-          ret['sigma'].append(float(line.split()[4]))
+          ret['sigma_trace'].append(float(line.split()[4]))
+    ret['sigma']=ret['sigma_trace'][-1]
     return ret
 
   #------------------------------------------------
   def check_complete(self):
     ''' Check if a variance optimize run is complete.
     Returns:
-      bool: If self.results are within error tolerances.
+      bool: If self.output are within error tolerances.
     '''
-    if len(self.output['sigma']) < self.minsteps:
-      print(self.__class__.__name__,": Variance optimize incomplete: number of steps (%f) less than minimum (%f)"%\
-          (len(self.output['sigma']),self.minsteps))
+    if len(self.output)==0:
       return False
-    if self.output['sigma'][-1] > self.vartol:
+    if len(self.output['sigma_trace']) < self.minsteps:
+      print(self.__class__.__name__,": Variance optimize incomplete: number of steps (%f) less than minimum (%f)"%\
+          (len(self.output['sigma_trace']),self.minsteps))
+      return False
+    if self.output['sigma'] > self.vartol:
       print(self.__class__.__name__,": Variance optimize incomplete: variance ({}) does not meet tolerance ({})"\
           .format(self.output['sigma'],self.vartol))
       return False
-    if (self.output['sigma'][-1]-self.output['sigma'][-2]) > self.vardifftol:
+    if (self.output['sigma_trace'][-1]-self.output['sigma_trace'][-2]) > self.vardifftol:
       print(self.__class__.__name__,": Variance optimize incomplete: change in variance (%f) less than tolerance (%f)"%\
-          (self.output['sigma'],self.vardifftol))
+          (self.output['sigma_trace'],self.vardifftol))
       return False
     return True
           

@@ -6,8 +6,6 @@ import subprocess as sub
 import shutil
 import submitter
 
-# TODO organize with inheritance.
-
 ####################################################
 class RunnerLocal:
   ''' Object that can accumulate jobs to run and run them together locally.'''
@@ -42,21 +40,6 @@ class RunnerLocal:
       cmdstr (str): executible statement. Will be prepended with appropriate mpirun. 
     '''
     self.exelines.append(cmdstr)
-
-  #-------------------------------------
-  def script(self,scriptfile):
-    ''' Dump accumulated commands into a script for another job to run.
-    Returns true if the runner had lines to actually execute.'''
-
-    if len(self.exelines)==0:
-      return False
-
-    with open(scriptfile,'w') as outf:
-      outf.write('\n'.join(self.prefix + exelines + self.postfix))
-
-    # Remove exelines so the runner is ready for the next go.
-    self.exelines=[]
-    return True
 
   #-------------------------------------
   def submit(self,jobname=None):
@@ -113,12 +96,20 @@ class RunnerPBS:
   def check_status(self):
     return submitter.check_PBS_stati(self.queueid)
 
+  #-------------------------------------
   def add_command(self,cmdstr):
     ''' Accumulate commands that don't get an MPI command.
     Args: 
       cmdstr (str): executible statement. Will be prepended with appropriate mpirun. 
     '''
     self.exelines.append(cmdstr)
+
+  #-------------------------------------
+  def release_commands(self):
+    ''' Return the commands given to the runner and delete them so they aren't run again. '''
+    ret=[line for line in self.exelines]
+    self.exelines=[]
+    return ret
 
   #-------------------------------------
   def add_task(self,exestr):
@@ -131,21 +122,6 @@ class RunnerPBS:
       self.exelines.append("mpirun {exe}".format(exe=exestr))
     else:
       self.exelines.append("mpirun -n {tnp} {exe}".format(tnp=self.nn*self.np,exe=exestr))
-
-  #-------------------------------------
-  def script(self,scriptfile):
-    ''' Dump accumulated commands into a script for another job to run.
-    Returns true if the runner had lines to actually execute.'''
-
-    if len(self.exelines)==0:
-      return False
-
-    with open(scriptfile,'w') as outf:
-      outf.write('\n'.join(self.prefix + exelines + self.postfix))
-
-    # Remove exelines so the runner is ready for the next go.
-    self.exelines=[]
-    return True
 
   #-------------------------------------
   def submit(self,jobname=None):
@@ -167,6 +143,107 @@ class RunnerPBS:
     qsub=[
         "#PBS -q %s"%self.queue,
         "#PBS -l nodes=%i%s"%(self.nn,ppnstr),
+        "#PBS -l walltime=%s"%self.walltime,
+        "#PBS -j oe ",
+        "#PBS -N %s "%jobname,
+        "#PBS -o %s "%jobout,
+        "cd %s"%os.getcwd(),
+      ] + self.prefix + self.exelines + self.postfix
+    qsubfile=jobname+".qsub"
+    with open(qsubfile,'w') as f:
+      f.write('\n'.join(qsub))
+    try:
+      result = sub.check_output("qsub %s"%(qsubfile),shell=True)
+      self.queueid.append(result.decode().split()[0].split('.')[0])
+      print(self.__class__.__name__,": Submitted as %s"%self.queueid)
+    except sub.CalledProcessError as err:
+      print(self.__class__.__name__,": Error submitting job. Check queue settings.\n\t{0}".format(err))
+
+    # Remove exelines so the runner is ready for the next go.
+    self.exelines=[]
+    return qsubfile
+
+####################################################
+class RunnerBW:
+  ''' Object that can accumulate jobs to run and run them together in one submission. '''
+  def __init__(self,queue='normal',
+                    account='batr',
+                    walltime='48:00:00',
+                    mode='xe',
+                    jobname='AGRunner',
+                    np=32,nn=1,
+                    prefix=None,
+                    postfix=None
+                    ):
+    ''' Note: exelines are prefixed by appropriate aprun commands.'''
+
+    # Good prefix choices (Blue Waters).
+    # These are needed for Crystal runs.
+        # module swap PrgEnv-cray PrgEnv-intel
+    # These are needed for QWalk runs.
+        #"module swap PrgEnv-cray PrgEnv-gnu",
+        #"module load acml",
+        #"module load cblas",
+    self.exelines=[]
+    self.np=np
+    self.nn=nn
+    self.account=account
+    self.mode=mode
+    self.jobname=jobname
+    self.queue=queue
+    self.walltime=walltime
+    if prefix is None: self.prefix=[]
+    else:              self.prefix=prefix
+    if postfix is None: self.postfix=[]
+    else:               self.postfix=postfix
+    self.queueid=[]
+
+  #-------------------------------------
+  def check_status(self):
+    return submitter.check_BW_stati(self.queueid)
+
+  def add_command(self,cmdstr):
+    ''' Accumulate commands that don't get an MPI command.
+    Args: 
+      cmdstr (str): executible statement. 
+    '''
+    self.exelines.append(cmdstr)
+
+  #-------------------------------------
+  def add_task(self,exestr):
+    ''' Accumulate executable commands.
+    Args: 
+      exestr (str): executible statement. Will be prepended with appropriate aprun. 
+    '''
+
+    if self.np=='allprocs':
+      self.exelines.append("aprun {exe}".format(exe=exestr))
+    else:
+      self.exelines.append("aprun -n {tnp} {exe}".format(tnp=self.nn*self.np,exe=exestr))
+
+  #-------------------------------------
+  def release_commands(self):
+    ''' Return the commands given to the runner and delete them so they aren't run again. '''
+    ret=[line for line in self.exelines]
+    self.exelines=[]
+    return ret
+
+  #-------------------------------------
+  def submit(self,jobname=None):
+    ''' Submit series of commands.'''
+    if jobname is None:
+      jobname=self.jobname
+
+    if len(self.exelines)==0:
+      #print(self.__class__.__name__,": All tasks completed or queued.")
+      return
+    
+    jobout=jobname+'.qsub.out'
+    # Submit all jobs.
+    qsub=[
+        "#PBS -q %s"%self.queue,
+        "#PBS -l nodes=%i:ppn=%d:%s"%(self.nn,self.np,self.mode),
+        "#PBS -A %s"%self.account,
         "#PBS -l walltime=%s"%self.walltime,
         "#PBS -j oe ",
         "#PBS -N %s "%jobname,

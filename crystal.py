@@ -308,7 +308,7 @@ class CrystalWriter:
 ########################################################
 
   def geom0d(self):
-    geomlines=["MOLECULE",str(self.group_number)]
+    geomlines=["MOLECULE","1"]
     geomlines+=["%i"%len(self.struct['sites'])]
     self._elements=set()
     for v in self.struct['sites']:

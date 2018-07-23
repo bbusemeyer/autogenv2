@@ -1,4 +1,3 @@
-from pymatgen.io.xyz import XYZ
 import numpy as np
 periodic_table = [
   "h","he","li","be","b","c","n","o","f","ne","na","mg","al","si","p","s","cl","ar",
@@ -10,60 +9,6 @@ periodic_table = [
   "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
 ]
 bohr=1.88972598858 # in Angstroms
-
-###########################################################################################
-def scrub_err(numstr):
-  ''' Remove error bar notation.
-
-  Example 
-  > scrub_err('123.190(2)')
-  > 123.190
-  '''
-  if '(' in numstr:
-    return float(numstr[:numstr.find('(')])
-  else:
-    return float(numstr)
-
-###########################################################################################
-def space_group_format(group_number):  
-  ''' Generate the format of the symmetry group input format for crystal.  
-  Returns: 
-    str: .format()-able string.  
-  '''  
-  format_string="" 
-
-  if 1<=group_number<3: 
-    #print("Case triclinic") 
-    format_string="{a} {b} {c} {alpha} {beta} {gamma}" 
-
-  elif 3<=group_number<16:  
-    #print("Case monoclinic")  
-    format_string="{a} {b} {c} {beta}" 
-
-  elif 16<=group_number<75: 
-    #print("Case orthorhombic")  
-    format_string="{a} {b} {c}"  
-     
-  elif 75<=group_number<143:  
-    #print("Case tetragonal")  
-    format_string="{a} {c}"  
-
-  elif 143<=group_number<168: 
-    #print("Case trigonal")  
-    format_string="{a} {c}"  
-
-  elif 168<=group_number<195: 
-    #print("Case trigonal")  
-    format_string="{a} {c}"  
-
-  elif 167<=group_number<231: 
-    #print("Case cubic") 
-    format_string="{a}"  
-
-  else:  
-    raise AssertionError("Invalid group_number") 
-
-  return format_string
 
 ###########################################################################################
 class Structure:
@@ -83,18 +28,22 @@ class Structure:
     self.pseudo={}
     #self.nspin=(1,1) # Not easy to extract. Is it really a property of structure?
     self.group_number=1
-    self.supercell=None
     self.latparm={}
 
   # ----------------------------------------------------------------------------------------
   def import_xyz(self):
     ''' Generate a molecule's Structure from xyz file.'''
+    from pymatgen.io.xyz import XYZ
     struct=XYZ.from_string(xyzstr).molecule.as_dict()
 
   # ----------------------------------------------------------------------------------------
   def import_cif_pymatgen(self,cifstr,primitive=True):
     ''' Import the positions and lattice parameters from CIF file using pymatgen.
-    This importer generates all symmetry inequivilent positions here, but cannot handle symmetry.'''
+    This importer generates all symmetry inequivilent positions here, but cannot handle symmetry.
+    Args:
+      cifstr (str): *contents* (not filename) of a CIF file.
+      primitive (bool): pymatgen will attempt to find smallest possible cell.
+    '''
     from pymatgen.io.cif import CifParser
     from pymatgen.core.periodic_table import Element
     pydict=CifParser.from_string(cifstr).get_structures(primitive=primitive)[0].as_dict()
@@ -181,7 +130,7 @@ class Structure:
       self.pseudo[species]=pseudo
 
   # ----------------------------------------------------------------------------------------
-  def export_crystal_geom(self):
+  def export_crystal_geom(self,supercell=None):
     ''' 
     Returns:
       list: List of the lines (str) making up the geometry section.
@@ -199,9 +148,9 @@ class Structure:
       # TODO assumes psuedopotential.
       geomlines+=[str(elemz+200)+" %g %g %g"%tuple(site['abc'])]
 
-    if self.supercell is not None:
+    if supercell is not None:
       geomlines+=["SUPERCELL"]
-      for row in self.supercell:
+      for row in supercell:
         geomlines+=[' '.join(map(str,row))]
 
     return geomlines
@@ -294,3 +243,57 @@ class Structure:
         ))
       outlines += ["    }","  }","}"]
     return outlines
+
+###########################################################################################
+def scrub_err(numstr):
+  ''' Remove error bar notation.
+
+  Example 
+  > scrub_err('123.190(2)')
+  > 123.190
+  '''
+  if '(' in numstr:
+    return float(numstr[:numstr.find('(')])
+  else:
+    return float(numstr)
+
+###########################################################################################
+def space_group_format(group_number):  
+  ''' Generate the format of the symmetry group input format for crystal.  
+  Returns: 
+    str: .format()-able string.  
+  '''  
+  format_string="" 
+
+  if 1<=group_number<3: 
+    #print("Case triclinic") 
+    format_string="{a} {b} {c} {alpha} {beta} {gamma}" 
+
+  elif 3<=group_number<16:  
+    #print("Case monoclinic")  
+    format_string="{a} {b} {c} {beta}" 
+
+  elif 16<=group_number<75: 
+    #print("Case orthorhombic")  
+    format_string="{a} {b} {c}"  
+     
+  elif 75<=group_number<143:  
+    #print("Case tetragonal")  
+    format_string="{a} {c}"  
+
+  elif 143<=group_number<168: 
+    #print("Case trigonal")  
+    format_string="{a} {c}"  
+
+  elif 168<=group_number<195: 
+    #print("Case trigonal")  
+    format_string="{a} {c}"  
+
+  elif 167<=group_number<231: 
+    #print("Case cubic") 
+    format_string="{a}"  
+
+  else:  
+    raise AssertionError("Invalid group_number") 
+
+  return format_string

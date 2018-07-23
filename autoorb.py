@@ -1,3 +1,4 @@
+import crystal2qmc
 
 #################################################################################################
 class Orbitals:
@@ -9,11 +10,10 @@ class Orbitals:
   #----------------------------------------------------------------------------------------------
   def __init__(self):
     self.basis={}
-    self.eigvecs={}
-    self.eigvals={}
-    self.is_complex={}
+    self.eigvecs=[]
+    self.eigvals=[]
     self.atom_order=()
-    self.kpt_weights={}
+    self.kpt_weight=0.0
 
   #----------------------------------------------------------------------------------------------
   def export_qwalk_basis(self):
@@ -39,46 +39,67 @@ class Orbitals:
           ]
     outlines+=['  }','}']
     return outlines
+
   #----------------------------------------------------------------------------------------------
-  def write_orb(self,kpt,outfn):#,maxmo_spin=-1):
+  def write_qwalk_orb(self,outfn,nperspin,nvirtual=0,spin_restricted=False):
     ''' Generate a orb file for QWalk. 
-    This just writes to the file because the orbital sections are often quite large.
+    This just writes to the file because orbfile are necessarily separate in QWalk.
 
     Args:
-      kpt (tuple): kpoint coordinate of the orbitals. See self.eigsys for options.
       outfn (str): file to write to.
-      maxmo_spin (int): TODO Number of orbitals to print for each spin channel.
-        You should set this to the maximum over the two channels.
+      nperspin (tuple): (Nup,Ndown) number of electrons in each spin channel.
+      nvirtual (int): Number of virtual (unoccupied in ground state) orbitals to print for each spin channel.
+      spin_restricted (bool): Up and down orbitals are restricted to be the same.
     '''
+    # Figure out sizes of things.
+    if spin_restricted: nspin=1
+    else:               nspin=2
+
     outf=open(outfn,'w')
 
-    num_angular={'S':1,'P':3,'5D':5,'7F_crystal':7,'G':9,'H':11}
+    nao_atom = count_naos(self.basis)
+    totnmo = (max(nperspin)+nvirtual)*nspin
 
-    nmo=len(self.eigvecs[(0,0,0)]['real'])*self.eigvecs[(0,0,0)]['real'][0].shape[0]
-
-    coef_cnt=0
-    for moidx in range(nmo):
+    # Do the printing.
+    coef_cnt = 0
+    for moidx in range(totnmo):
       for atidx,atom in enumerate(self.atom_order):
-        nao=sum(( num_angular[element['angular']] for element in self.basis[atom] ))
-        for aoidx in range(nao):
-          coef_cnt += 1
+        for aoidx in range(nao_atom[atom]):
           outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
-              .format(moidx+1,aoidx+1,atidx+1,coef_cnt))
-    eigreal_flat = [e[0:,:].flatten() for e in self.eigvecs[kpt]['real']]
-    eigimag_flat = [e[0:,:].flatten() for e in self.eigvecs[kpt]['imag']]
+              .format(moidx+1,aoidx+1,atidx+1,coef_cnt+1))
+          coef_cnt += 1
+    eigvec_flat = [self.eigvecs[s][0:nperspin[s]+nvirtual].flatten() for s in range(nspin)] # TODO not memory efficient.
     print_cnt = 0
     outf.write("COEFFICIENTS\n")
-    if self.is_complex[kpt]: #complex coefficients
-      for eigr,eigi in zip(eigreal_flat,eigimag_flat):
-        for r,i in zip(eigr,eigi):
+    if (eigvec_flat[0].imag!=0.0).any(): # Complex coefficients
+      for eigv in eigvec_flat: 
+        for r,i in zip(eigv.real,eigv.imag):
           outf.write("({:<.12e},{:<.12e}) "\
               .format(r,i))
           print_cnt+=1
           if print_cnt%5==0: outf.write("\n")
-    else: #Real coefficients
-      for eigr in eigreal_flat:
+    else:                        # Real coefficients
+      for eigr in eigvec_flat:
         for r in eigr:
           outf.write("{:< 15.12e} ".format(r))
           print_cnt+=1
           if print_cnt%5==0: outf.write("\n")
-    outf.close()
+
+###############################################################################
+def count_naos(basis):
+  ''' How many AOs are there in each atom?
+  Args:
+    basis (dict): basis dictionary like in Orbitals.
+  Returns:
+    int: number of AOs for each atomic species in the basis.
+  '''
+  countmap={'S':1,'P':3,'5D':5,'7F_crystal':7,'G':9,'H':11}
+  results={}
+
+  for atom in basis:
+    results[atom]=0
+    for basis_element in basis[atom]:
+      results[atom]+=countmap[basis_element['angular']]
+  return results
+
+

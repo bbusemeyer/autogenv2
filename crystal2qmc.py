@@ -467,25 +467,27 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
   eigsys = read_kred(info,basis,kred)
 
   struct=Structure()
-  orbs=Orbitals()
 
   struct.latparm={'latvecs':lat_parm['latvecs']}
   struct.pseudo=format_pseudo(pseudo,ions)
   struct.positions=format_positions(ions)
 
-  orbs.basis=format_basis(ions,basis)
-  orbs.eigvals=eigsys['eigvals']
-  orbs.eigvecs=eigsys['eigvecs']
-  orbs.is_complex=eigsys['ikpt_iscmpx']
-  orbs.kpt_weights=eigsys['kpt_weights']
-  orbs.atom_order=[periodic_table[n%200-1].capitalize() for n in ions['atom_nums']]
+  allorbs=[]
 
-  return struct,orbs
+  for kpt in eigsys['kpt_coords']:
+    orbs=Orbitals()
+    orbs.basis=format_basis(ions,basis)
+    orbs.kpoint=kpt
+    orbs.eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,s),basis) for s in range(eigsys['nspin'])]
+    orbs.atom_order=[periodic_table[n%200-1].capitalize() for n in ions['atom_nums']]
+    allorbs.append(orbs)
+
+  return struct,allorbs
 
 # Look up an eigenvector from KRED.DAT.
 # TODO: Further reduction in memory usage can be had by specifying nvirtual here.
 def eigvec_lookup(kpt,eigsys,spin=0):
-  ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.
+  ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.  
   Args:
     kpt (tuple of int): Kpoint coordinates.
     eigsys (dict): data from read_kred. 
@@ -628,6 +630,43 @@ def write_orbplot(basis,eigsys,kpt,outfn,orbfn,basisfn,sysfn,maxmo_spin=-1):
     outf.write("\n".join(outlines_prefix+ [" ".join(uporblines)] + outlines_postfix))
   with open(outfn+".dn.plot",'w') as outf:
     outf.write("\n".join(outlines_prefix+ [" ".join(dnorblines)] + outlines_postfix))
+      
+###############################################################################
+def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
+  outf=open(outfn,'w')
+  if maxmo_spin < 0:
+    maxmo_spin=basis['nmo']
+
+  eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,spin),basis) for spin in range(eigsys['nspin'])]
+  atidxs = np.unique(basis['atom_shell'])-1
+  nao_atom = np.zeros(atidxs.size,dtype=int)
+  for shidx in range(len(basis['nao_shell'])):
+    nao_atom[basis['atom_shell'][shidx]-1] += basis['nao_shell'][shidx]
+  #nao_atom = int(round(sum(basis['nao_shell']) / len(ions['positions'])))
+  coef_cnt = 1
+  totnmo = maxmo_spin*eigsys['nspin'] #basis['nmo'] * eigsys['nspin']
+  for moidx in np.arange(totnmo)+1:
+    for atidx in atidxs+1:
+      for aoidx in np.arange(nao_atom[atidx-1])+1:
+        outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
+            .format(moidx,aoidx,atidx,coef_cnt))
+        coef_cnt += 1
+  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs]
+  print_cnt = 0
+  outf.write("COEFFICIENTS\n")
+  if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
+    for eigv in eigvec_flat: #zip(eigreal_flat,eigimag_flat):
+      for r,i in zip(eigv.real,eigv.imag):
+        outf.write("({:<.12e},{:<.12e}) "\
+            .format(r,i))
+        print_cnt+=1
+        if print_cnt%5==0: outf.write("\n")
+  else: #Real coefficients
+    for eigr in eigvec_flat:
+      for r in eigr:
+        outf.write("{:< 15.12e} ".format(r))
+        print_cnt+=1
+        if print_cnt%5==0: outf.write("\n")
 
 ###############################################################################
 # f orbital normalizations are from 
@@ -679,43 +718,6 @@ def normalize_eigvec(eigvec,basis):
   eigvec[:,ao_type==4] *= fnorms
 
   return eigvec
-      
-###############################################################################
-def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
-  outf=open(outfn,'w')
-  if maxmo_spin < 0:
-    maxmo_spin=basis['nmo']
-
-  eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,spin),basis) for spin in range(eigsys['nspin'])]
-  atidxs = np.unique(basis['atom_shell'])-1
-  nao_atom = np.zeros(atidxs.size,dtype=int)
-  for shidx in range(len(basis['nao_shell'])):
-    nao_atom[basis['atom_shell'][shidx]-1] += basis['nao_shell'][shidx]
-  #nao_atom = int(round(sum(basis['nao_shell']) / len(ions['positions'])))
-  coef_cnt = 1
-  totnmo = maxmo_spin*eigsys['nspin'] #basis['nmo'] * eigsys['nspin']
-  for moidx in np.arange(totnmo)+1:
-    for atidx in atidxs+1:
-      for aoidx in np.arange(nao_atom[atidx-1])+1:
-        outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
-            .format(moidx,aoidx,atidx,coef_cnt))
-        coef_cnt += 1
-  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs]
-  print_cnt = 0
-  outf.write("COEFFICIENTS\n")
-  if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients
-    for eigv in eigvec_flat: #zip(eigreal_flat,eigimag_flat):
-      for r,i in zip(eigv.real,eigv.imag):
-        outf.write("({:<.12e},{:<.12e}) "\
-            .format(r,i))
-        print_cnt+=1
-        if print_cnt%5==0: outf.write("\n")
-  else: #Real coefficients
-    for eigr in eigvec_flat:
-      for r in eigr:
-        outf.write("{:< 15.12e} ".format(r))
-        print_cnt+=1
-        if print_cnt%5==0: outf.write("\n")
 
 ###############################################################################
 # TODO Generalize to no pseudopotential.
@@ -948,4 +950,3 @@ if __name__ == "__main__":
   args=parser.parse_args()
 
   convert_crystal(args.base,args.propout,args.kset,args.nvirtual)
-

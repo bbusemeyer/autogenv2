@@ -232,9 +232,11 @@ class PySCFPBCWriter:
   def __init__(self,options={}):
     self.charge=0
     self.cif=''
+    self.supercell=None
     self.completed=False
     self.xc="pbe,pbe" #Any valid input for PySCF. This gets put into the 'xc' variable
     self.diis_start_cycle=1
+    self.cell_precision=1e-8 
     self.ecp="bfd"
     self.level_shift=0.0
     self.conv_tol=1e-7
@@ -242,12 +244,13 @@ class PySCFPBCWriter:
     self.method='RKS' 
     self.direct_scf_tol=1e-7
     self.spin=0
-    self.gmesh=None
+    self.ke_cutoff=None
     self.xyz=""
     self.latticevec=""
+    self.supercell=[[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]
     self.kpts=[2,2,2]
     self.basis='bfd_vtz'
-    self.remove_linear_dep=False
+    self.remove_linear_dep=False # float for setting tolerance.
     
     # Default chosen by method at runtime.
     self.dm_generator=None
@@ -286,7 +289,7 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      self.from_cif(d['cif'])
+      self.from_cif(d['cif'], supercell=self.supercell)
 
 
   #-----------------------------------------------
@@ -333,22 +336,18 @@ class PySCFPBCWriter:
         "from pyscf.pbc.dft import KUKS as UKS"
       ]
 
-    if self.gmesh is not None:
-      gmesh=["  mesh="+str(self.gmesh)+","]
-    else:
-      gmesh=[]
-
     #The basis
     outlines+=["basis=%s"%basisstr]
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "  atom='''"+self.xyz+"''',",
-        ]+gmesh+[
-        "  a='''"+str(self.latticevec) +"''',",
-        "  basis=basis,",
-        "  spin=%i,"%self.spin,
-        "  ecp='%s')"%self.ecp,
+        "ke_cutoff="+str(self.ke_cutoff)+",",
+        "atom='''"+self.xyz+"''',",
+        "a='''"+str(self.latticevec) +"''',",
+        "precision=%s,"%self.cell_precision,
+        "basis=basis,",
+        "spin=%i,"%self.spin,
+        "ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge
         ]
     #Set up k-points
@@ -378,7 +377,8 @@ class PySCFPBCWriter:
       outlines+=['m.xc="%s"'%self.xc]
 
     if self.remove_linear_dep:
-      outlines+=['m=remove_linear_dep_(m)']
+      lincutoff=1e-8 if(self.remove_linear_dep is True) else self.remove_linear_dep
+      outlines+=['m=remove_linear_dep_(m,lindep=%f)'%lincutoff]
 
     outlines+=["print('E(HF) =',m.kernel(numpy.array(dm_kpts)))"]
     outlines += ['print ("All_done")']

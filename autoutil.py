@@ -15,6 +15,18 @@ def get_info(pickle):
   except AttributeError:
     pass
 
+def set_attribute(pickle,attr,val):
+  ''' Set an attribute in a pickled manager and save the updated manager back to that pickle.
+  Args:
+    pickle (str): path to pickled manager.
+    attr (str): name of attribute to change. 
+    val: value of attribute to set.
+  '''
+  print("Setting %s in %s..."%(attr,pickle))
+  man=pkl.load(open(pickle,'rb'))
+  man.__dict__[attr]=val
+  pkl.dump(man,open(pickle,'wb'))
+
 if __name__=='__main__':
 
   parser=argparse.ArgumentParser("Autogen untilities.")

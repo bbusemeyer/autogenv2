@@ -38,8 +38,9 @@ class CrystalWriter:
     self.spinedit=[] # Spins to flip from guess_fort
 
     #Numerical convergence parameters
-    self.basis_params=[0.2,2,3]
+    self.basis_params=[0.2,2,3] # augment basis after adjusting.
     self.basislines=None # Option to manually input basis lines.
+    self.nangular={"s":1,"p":1,"d":1,"f":1,"g":0} # Number of elements to keep from the xml.
     self.cutoff=0.0    
     self.kmesh=[8,8,8]
     self.gmesh=16
@@ -308,7 +309,7 @@ class CrystalWriter:
 ########################################################
 
   def geom0d(self):
-    geomlines=["MOLECULE",str(self.group_number)]
+    geomlines=["MOLECULE","1"]
     geomlines+=["%i"%len(self.struct['sites'])]
     self._elements=set()
     for v in self.struct['sites']:
@@ -361,13 +362,13 @@ class CrystalWriter:
     
     maxorb=3
     basis_name="vtz"
-    nangular={"s":1,"p":1,"d":1,"f":1,"g":0}
     maxcharge={"s":2,"p":6,"d":10,"f":15}
     basis_index={"s":0,"p":2,"d":3,"f":4}
     transition_metals=["Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn"]
     if symbol in transition_metals:
       maxorb=4
-      nangular['s']=2
+      if self.nangular['s']<2:
+        self.nangular['s']=2
     
     tree = ElementTree()
     tree.parse(self.xml_name)
@@ -382,7 +383,7 @@ class CrystalWriter:
     ncontract=0
     for contraction in element.findall(basis_path):
         angular = contraction.get('Angular_momentum')
-        if found_orbitals.count(angular) >= nangular[angular]:
+        if found_orbitals.count(angular) >= self.nangular[angular]:
             continue
 
         #Figure out which coefficients to print out based on the minimal exponent
@@ -498,12 +499,14 @@ class CrystalReader:
         self.completed=False
         lines = []
         print(self.__class__.__name__,": Crystal output is unreadable, this usually happens when the process as been killed.")
+
       for li,line in enumerate(lines):
         if 'SCF ENDED - CONVERGENCE ON ENERGY' in line:
           self.output['total_energy']=float(line.split()[8])    
           print(self.__class__.__name__,": SCF ended converging on %f"%self.output['total_energy'])
           status='done'
           self.completed=True
+
         elif 'SCF ENDED - TOO MANY CYCLES' in line:
           last=float(line.split()[8])
           print("SCF ended at %f Ha without convergence"%last)
@@ -525,6 +528,31 @@ class CrystalReader:
             chgs += map(float,lines[li+shift].split())
             shift += 1
           self.output['atomic_charges']=chgs
+
+        elif('X(ANGSTROM)' in line): # line that position list starts on
+          i = li + 1
+          species = []
+          position = []
+          split_line = line.split()
+          while(len(split_line) != 0): # 0 length line is end of positions
+
+            # process is irrelevant output that pops up sometimes
+            if((split_line[0] == 'PROCESS') or (len(split_line) != 6)):
+              pass
+            
+            # good line. get species and position
+            else:
+              name = split_line[2]
+              species.append(name)
+              position.append((float(split_line[3]), float(split_line[4]), 
+                                  float(split_line[5])))
+            split_line = lines[i].split()
+            i += 1
+
+          # add to self.output
+          self.output["atomic_species"] = species
+          self.output["atomic_positions"] = position
+
     else:
       # Just to be sure/clear...
       self.completed=False

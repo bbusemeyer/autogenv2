@@ -90,28 +90,32 @@ class LinearReader:
 
   def read_outputfile(self,outfile):
     ret={}
-    ret['energy']=[]
-    ret['energy_err']=[]
+    ret['energy_trace']=[]
+    ret['energy_trace_err']=[]
     with open(outfile) as f:
       for line in f:
         if 'current energy' in line:
-          ret['energy'].append(float(line.split()[4]))
-          ret['energy_err'].append(float(line.split()[6]))
+          ret['energy_trace'].append(float(line.split()[4]))
+          ret['energy_trace_err'].append(float(line.split()[6]))
+    ret['total_energy']=ret['energy_trace'][-1]
+    ret['total_energy_err']=ret['energy_trace_err'][-1]
     return ret
 
   #------------------------------------------------
   def check_complete(self):
     ''' Check if a variance optimize run is complete.
     Returns:
-      bool: If self.results are within error tolerances.
+      bool: If self.output are within error tolerances.
     '''
-    if len(self.output['energy']) < self.minsteps:
+    if len(self.output)==0:
+      return False
+    if len(self.output['energy_trace']) < self.minsteps:
       print(self.__class__.__name__,"Linear optimize incomplete: number of steps (%f) less than minimum (%f)"%\
-          (len(self.output['energy']),self.minsteps))
+          (len(self.output['energy_trace']),self.minsteps))
       return False
     else:
-      ediff=self.output['energy'][-1]-self.output['energy'][-2]
-      ediff_err=(self.output['energy_err'][-1]**2 + self.output['energy_err'][-2]**2)**0.5
+      ediff=self.output['energy_trace'][-1]-self.output['energy_trace'][-2]
+      ediff_err=(self.output['energy_trace_err'][-1]**2 + self.output['energy_trace_err'][-2]**2)**0.5
       if ediff > self.sigtol*ediff_err:
         print(self.__class__.__name__,"Linear optimize incomplete: change in energy (%.5f) less than tolerance (%.2f*%.2f=%.5f)"%\
             (ediff,self.sigtol,ediff_err,self.sigtol*ediff_err))

@@ -29,6 +29,7 @@ class Structure:
     #self.nspin=(1,1) # Not easy to extract. Is it really a property of structure?
     self.group_number=1
     self.latparm={}
+    self.cutoff_divider=7.5
 
   # ----------------------------------------------------------------------------------------
   def import_xyz(self):
@@ -54,7 +55,7 @@ class Structure:
       element=site['species'][0]['element']
       self.positions.append({
             'species':element,
-            'abc':[float(c) for c in site['abc']],
+            'abc':[float(c) for c in site['abc']], # TODO store only one.
             'xyz':[float(c) for c in site['xyz']]
           })
     for key in 'alpha','beta','gamma','a','b','c':
@@ -144,7 +145,7 @@ class Structure:
 
     geomlines+=["%i"%len(self.positions)]
     for site in self.positions:
-      elemz=periodic_table.index(site['species'].lower())+1
+      elemz=periodic_table.index(site['species'].capitalize())+1
       # TODO assumes psuedopotential.
       geomlines+=[str(elemz+200)+" %g %g %g"%tuple(site['abc'])]
 
@@ -242,7 +243,7 @@ class Structure:
           gaussian['coef']
         ))
       outlines += ["    }","  }","}"]
-    return outlines
+    return '\n'.join(outlines)+'\n'
 
 ###########################################################################################
 def scrub_err(numstr):
@@ -297,3 +298,20 @@ def space_group_format(group_number):
     raise AssertionError("Invalid group_number") 
 
   return format_string
+
+######################################################################################
+def find_cutoff_divider(latvecs,min_exp):
+  cutoff_divider = 2.000001
+  cross01 = np.cross(latvecs[0], latvecs[1])
+  cross12 = np.cross(latvecs[1], latvecs[2])
+  cross02 = np.cross(latvecs[0], latvecs[2])
+
+  heights = [0,0,0]
+  heights[0]=abs(np.dot(latvecs[0], cross12)/np.dot(cross12,cross12)**.5)
+  heights[1]=abs(np.dot(latvecs[1], cross02)/np.dot(cross02,cross02)**.5)
+  heights[2]=abs(np.dot(latvecs[2], cross01)/np.dot(cross01,cross01)**.5)
+
+  basis_cutoff=min(heights)/cutoff_divider
+  cutoff_length=(-np.log(1e-8)/min_exp)**.5
+
+  return basis_cutoff*2.0 / cutoff_length

@@ -1,71 +1,175 @@
 # You can easily define new wave functions here. 
 # The only requirement is to define the export() method, which defines how to generate the QWalk input. 
 import os
+from numpy import array
+from manager_tools import separate_jastrow
 
 #######################################################################
-class TrialFunction:
-  ''' Skeleton class to define API for Trial Functions.'''
-  def export(self):
-    raise NotImplementedError("All trial functions must have export function defined.")
+def export_trialfunc(wf):
+  ''' Convenience function for wrapping the wave function output with trialfunc. 
+  Args:
+    wf (wave function object): wave function you want as your trial function. Should have an export routine.
+  Returns:
+    str: trialfunc section.
+  '''
+  outlines=['trialfunc { ']+\
+      ['  '+line for line in wf.export().split('\n')]+\
+      ['}']
+  return '\n'.join(outlines)+'\n'
 
 #######################################################################
-class SlaterJastrow(TrialFunction):
-  def __init__(self,slatman,jastman=None,kpoint=0):
-    ''' Generate a Slater-Jastrow wave function from a manager that generates a Slater determinant and
-      a manager that generates a Jastrow factor.
+class Slater:
+  def __init__(self,orbitals,uporbs,downorbs,detweights=(1.0,)):
+    ''' Slater wave function object.
 
     Args: 
-      slatman (Manager): Manager with a Slater-determinant-generating result.
-      jastman (Manager): Manager with a Jastrow-generating result. 
-      kpoint (int): kpoint number (as determined by the slatman converter). None implies its a finite system.
-    Returns:
-      str or None: None if managers are not ready, QWalk section (str) if they are.
+      orbitals (Orbitals): Orbitals from which you'll select the orbitals. 0-based indexing.
+      uporbs (array-like): which orbitals used for up electrons.
+      downorbs (array-like): which orbitals used for down electrons.
+      kpoint (tuple): kpoint in same form as in Orbitals.
     '''
-    self.slatman=slatman
-    if jastman is None:
-      self.jastman=slatman
-    else:
-      self.jastman=jastman
+    uporbs=array(uporbs)
+    downorbs=array(downorbs)
 
-    self.kpoint=kpoint
+    # A lot can go wrong with this input. Raise hell if something is wrong.
+    if len(detweights)>1:
+      assert len(uporbs.shape)==2 or len(downorbs.shape)==2,\
+          "Multiple deterimants require specifying weights."
+      assert len(detweights)==uporbs.shape[0] or len(detweights)==downorbs.shape[0],\
+          "Number of determinant weights should be same as number of deteriminants."
+    else:
+      uporbs=array([uporbs])
+      downorbs=array([downorbs])
+      assert (len(uporbs.shape)==1 or uporbs.shape[0]==1),\
+          "Multiple deterimants require specifying weights."
+
+    self.orbitals=orbitals
+    self.detweights=array(detweights)
+    self.uporbs=array(uporbs)
+    self.downorbs=array(downorbs)
+   
+  #------------------------------------------------
+  def export(self):
+    ''' Export a Slater section for use in a trialfunction.
+    Returns:
+      str: Slater wave function section for QWalk.
+    '''
+
+    uporbs = array(self.uporbs)+1
+    downorbs = array(self.downorbs)+1
+
+    if any([(e.imag!=0.0).any() for e in self.orbitals.eigvecs]):
+      orbstr = "corbitals"
+    else:
+      orbstr = "orbitals"
+
+    print(uporbs.astype(str))
+    uporblines = [' '.join(det) for det in uporbs.astype(str)]
+    downorblines = [' '.join(det) for det in downorbs.astype(str)]
+
+    outlines = [
+        "slater",
+        "{0} {{".format(orbstr),
+        "  magnify 1",
+        "  nmo {0}".format(max(uporbs.max(),downorbs.max())),
+        "  orbfile {0}".format(self.orbitals.last_orbfile),
+        self.orbitals.export_qwalk_basis(),
+        "  centers { useglobal }",
+        "}",
+        "detwt {{ {} }}".format(' '.join(self.detweights.astype(str))),
+        "states {"
+      ]
+    for detweight,upline,downline in zip(self.detweights,uporblines,downorblines):
+      outlines+=[
+          "  # Spin up orbitals detweight {}.".format(detweight), 
+          "  " + upline,
+          "  # Spin down orbitals detweight {}.".format(detweight), 
+          "  " + downline,
+          "}"
+        ]
+    return "\n".join(outlines)
 
   #------------------------------------------------
-  def export(self,qmcpath):
-    ''' Export the wavefunction section for this trial wave function.
-    Args: 
-      path (str): QWalkManager.path
-      kpoint: the kpoint to choose for exporting. 
-    Returns:
-      str: system and wave fumction section for QWalk. Empty string if not ready.
+  export_trialfunc=export_trialfunc
+
+#######################################################################
+# Quick and dirty version for now.
+class Jastrow:
+  def __init__(self,jastfn=None):
+    ''' Jastrow wave function object.
+    Args:
+      jastfn (str): file name to read with Jastrow section..
     '''
-    # This assumes you're using 2-body, should be easy to make a new object or maybe an arg for 3body.
+    self.text=''
+    if jastfn is not None:
+      self.text=separate_jastrow(jastfn)
 
-    # Ensure files are correctly generated.
-    if not (self.slatman.export_qwalk() and self.jastman.export_qwalk()):
-      return ''
+  #------------------------------------------------
+  def export(self):
+    ''' Export a Slater section for use in a trialfunction.
+    Returns:
+      str: Jastrow wave function section for QWalk.
+    '''
 
-    if type(self.slatman.qwfiles['slater'])==str:
-      slater=self.slatman.qwfiles['slater']
-      sys=self.slatman.qwfiles['sys']
-    else:
-      slater=self.slatman.qwfiles['slater'][self.kpoint]
-      sys=self.slatman.qwfiles['sys'][self.kpoint]
-    jastrow=self.jastman.qwfiles['jastrow2']
+    return self.text
+  #------------------------------------------------
+  export_trialfunc=export_trialfunc
 
-    # There may be a use case for these two to be different, but I want to check the first time this happens. 
-    # You can have weird bugs if you use different system files for each wave function term, I think.
-    # Should find a way to check for this bug. 
-    # This doesn't work because we may have different jastrows in same directory, for instance.
-    #assert (self.jastman.path+self.jastman.name)==\
-    #    (self.slatman.path+self.slatman.name),\
-    #    'System file probably should be the same between Jastrow and Slater files. '
+#######################################################################
+class SlaterJastrow:
+  def __init__(self,slater,jastrow):
+    self.slater=slater
+    self.jastrow=jastrow
+
+  #------------------------------------------------
+  def export(self):
+    ''' Export a Slater section for use in a trialfunction.
+    Args: 
+      orbfn: File name to write the orbitals to. Defaults to "slater_%d_%d_%d"%self.orbitals.kpoint.
+    Returns:
+      str: Slater wave function section for QWalk.
+    '''
 
     outlines=[
-        'include %s'%os.path.relpath(self.slatman.path+sys,qmcpath),
-        'trialfunc { slater-jastrow ',
-        '  wf1 { include %s }'%os.path.relpath(self.slatman.path+slater,qmcpath),
-        '  wf2 { include %s }'%os.path.relpath(self.slatman.path+jastrow,qmcpath),
-        '}'
+        'slater-jastrow',
+        '  wf1 {'
+        ]+['    '+line for line in self.slater.export().split('\n')]+[
+        '  }',
+        '  wf2 {'
+        ]+['    '+line for line in self.jastrow.export().split('\n')]+[
+        '  }'
       ]
+    
     return '\n'.join(outlines)
+  #------------------------------------------------
+  export_trialfunc=export_trialfunc
 
+#######################################################################
+class SlaterJastrow:
+  ''' Wave function that multiplies a slater/multislater wave function by a jastrow.'''
+  def __init__(self,slater,jastrow):
+    self.slater=slater
+    self.jastrow=jastrow
+
+  #------------------------------------------------
+  def export(self):
+    ''' Export a Slater section for use in a trialfunction.
+    Args: 
+      orbfn: File name to write the orbitals to. Defaults to "slater_%d_%d_%d"%self.orbitals.kpoint.
+    Returns:
+      str: Slater wave function section for QWalk.
+    '''
+
+    outlines=[
+        'slater-jastrow',
+        '  wf1 {'
+        ]+['    '+line for line in self.slater.export().split('\n')]+[
+        '  }',
+        '  wf2 {'
+        ]+['    '+line for line in self.jastrow.export().split('\n')]+[
+        '  }'
+      ]
+    
+    return '\n'.join(outlines)
+  #------------------------------------------------
+  export_trialfunc=export_trialfunc

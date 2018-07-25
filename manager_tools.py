@@ -68,6 +68,7 @@ def update_attributes(copyto,copyfrom,skip_keys=[],take_keys=[]):
       pass
   return updated
 
+######################################################################
 def separate_jastrow(wffile,optimizebasis=False):
   ''' Seperate the jastrow section of a QWalk wave function file.'''
   # Copied from utils/separate_jastrow TODO: no copy, bad

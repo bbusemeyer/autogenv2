@@ -13,15 +13,16 @@ def error(message,errortype):
   print(message)
   exit(errortype)
 
-periodic_table = [
-  "h","he","li","be","b","c","n","o","f","ne","na","mg","al","si","p","s","cl","ar",
-  "k","ca","sc","ti","v","cr","mn","fe","co","ni","cu","zn","ga","ge","as","se","br",
-  "kr","rb","sr","y","zr","nb","mo","tc","ru","rh","pd","ag","cd","in","sn","sb","te",
-  "i","xe","cs","ba","la","ce","pr","nd","pm","sm","eu","gd","tb","dy","ho","er","tm",
-  "yb","lu","hf","ta","w","re","os","ir","pt","au","hg","tl","pb","bi","po","at","rn",
-  "fr","ra","ac","th","pa","u","np","pu","am","cm","bk","cf","es","fm","md","no","lr",
-  "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
-]
+periodic_table = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na',
+    'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr',
+    'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr',
+    'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+    'In', 'Sn', 'Sb', 'Te', 'I', 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd',
+    'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf',
+    'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po',
+    'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm',
+    'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs',
+    'Mt', 'Ds', 'Rg', 'Cp', 'Uut', 'Uuq', 'Uup', 'Uuh', 'Uus', 'Uuo']
 
 ###############################################################################
 # Convenince method
@@ -99,6 +100,40 @@ def convert_crystal(
     write_sys(lat_parm,basis,eigsys,pseudo,ions,kpt,files['sys'][kidx])
 
   return files
+
+###############################################################################
+def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
+  ''' Create Structure and Orbitals objects from Crystal results. 
+  These objects can generate QWalk input files.
+
+  Args: 
+    gred (str): path to GRED.DAT.
+    kred (str): path to KRED.DAT.
+  Returns:
+    struct (Structure): Structure object.
+    orbs (Orbitals): Orbitals object.
+  '''
+  # This is the pretty-much raw data from the Crystal output files.
+  info, lat_parm, ions, basis, pseudo = read_gred(gred)
+  eigsys = read_kred(info,basis,kred)
+
+  struct=Structure()
+
+  struct.latparm={'latvecs':lat_parm['latvecs']}
+  struct.pseudo=format_pseudo(pseudo,ions)
+  struct.positions=format_positions(ions)
+
+  allorbs=[]
+
+  for kpt in eigsys['kpt_coords']:
+    orbs=Orbitals()
+    orbs.basis=format_basis(ions,basis)
+    orbs.kpoint=(np.array(kpt)/eigsys['nkpts_dir']*2.)
+    orbs.eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,s),basis) for s in range(eigsys['nspin'])]
+    orbs.atom_order=[periodic_table[n%200-1] for n in ions['atom_nums']]
+    allorbs.append(orbs)
+
+  return struct,allorbs
 
 ###############################################################################
 def read_gred(gred="GRED.DAT"):
@@ -371,7 +406,7 @@ def format_pseudo(oldps,oldions):
   count=0
   for num in oldps:
     data=oldps[num]
-    species=periodic_table[num%200-1].capitalize()
+    species=periodic_table[num%200-1]
 
     charge=oldions['charges'][oldions['atom_nums']==num][0]
 
@@ -402,7 +437,7 @@ def format_positions(ions):
   ''' Rearrage the pseudopotential data for structure object.'''
   positions=[]
   for num,pos in zip(ions['atom_nums'],ions['positions']):
-    species=periodic_table[num%200-1].capitalize()
+    species=periodic_table[num%200-1]
     positions.append({
         'species':species,
         'xyz':pos
@@ -433,7 +468,7 @@ def format_basis(ions,basis):
   slicepoints=np.insert(basis['prim_shell'].cumsum(),0,0)
 
   for atidx in set(basis['atom_shell']):
-    species=periodic_table[ions['atom_nums'][atidx-1]%200-1].capitalize()
+    species=periodic_table[ions['atom_nums'][atidx-1]%200-1]
     if species in newbasis: continue
 
     sel=basis['atom_shell']==atidx
@@ -451,39 +486,6 @@ def format_basis(ions,basis):
   return newbasis
 
 ###############################################################################
-def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
-  ''' Create Structure and Orbitals objects from Crystal results. 
-  These objects can generate QWalk input files.
-
-  Args: 
-    gred (str): path to GRED.DAT.
-    kred (str): path to KRED.DAT.
-  Returns:
-    struct (Structure): Structure object.
-    orbs (Orbitals): Orbitals object.
-  '''
-  # This is the pretty-much raw data from the Crystal output files.
-  info, lat_parm, ions, basis, pseudo = read_gred(gred)
-  eigsys = read_kred(info,basis,kred)
-
-  struct=Structure()
-
-  struct.latparm={'latvecs':lat_parm['latvecs']}
-  struct.pseudo=format_pseudo(pseudo,ions)
-  struct.positions=format_positions(ions)
-
-  allorbs=[]
-
-  for kpt in eigsys['kpt_coords']:
-    orbs=Orbitals()
-    orbs.basis=format_basis(ions,basis)
-    orbs.kpoint=kpt
-    orbs.eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,s),basis) for s in range(eigsys['nspin'])]
-    orbs.atom_order=[periodic_table[n%200-1].capitalize() for n in ions['atom_nums']]
-    allorbs.append(orbs)
-
-  return struct,allorbs
-
 # Look up an eigenvector from KRED.DAT.
 # TODO: Further reduction in memory usage can be had by specifying nvirtual here.
 def eigvec_lookup(kpt,eigsys,spin=0):
@@ -493,6 +495,7 @@ def eigvec_lookup(kpt,eigsys,spin=0):
     eigsys (dict): data from read_kred. 
     iscomplex (bool): Is the kpoint complex.
     spin (int): desired spin component. 
+    nvirtual (int): number of virtual orbitals (unoccupied in the ground state) to include. 
   Returns:
     array: eigenstate indexed by [band, ao]
   '''

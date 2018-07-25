@@ -2,21 +2,23 @@ from __future__ import print_function
 import os
 ####################################################
 class VarianceWriter:
-  def __init__(self,options={}):
+  def __init__(self,**options):
     ''' Object for producing input into a variance optimization QWalk run. 
     Args:
-      options (dict): editable options are as follows.
-        trialfunc (str): system and trial wavefunction section.
-        errtol (float): tolerance for the variance. 
-        minblocks (int): minimum number of VMC steps to take.
-        iterations (int): number of VMC steps to attempt.
-        macro_iterations (int): Number of optimize calls to make.
+      trialfunc (str): system and trial wavefunction section.
+      orbfile (str): name of orbfile to create.
+      errtol (float): tolerance for the variance. 
+      minblocks (int): minimum number of VMC steps to take.
+      iterations (int): number of VMC steps to attempt.
+      macro_iterations (int): Number of optimize calls to make.
     '''
-    self.trialfunc=''
+    self.sys=None
+    self.trialfunc=None
     self.errtol=10
     self.minblocks=0
     self.iterations=10
     self.macro_iterations=3
+    self.orbfile=None
 
     self.qmc_type='Variance optimization'
     self.qmc_abr='variance'
@@ -33,15 +35,24 @@ class VarianceWriter:
     
   #-----------------------------------------------
   def qwalk_input(self,infile):
-    if self.trialfunc=='':
-      print(self.__class__.__name__,": Trial function not ready. Postponing input file generation.")
-      self.completed=False
+    assert self.trialfunc is not None
+
+    # Output all to strings.
+    if type(self.sys) != str:
+      sys = self.sys.export_qwalk_sys()
     else:
-      with open(infile,'w') as f:
-        for j in range(self.macro_iterations):
-          f.write("method { optimize iterations %i }\n"%self.iterations)
-        f.write(self.trialfunc)
-      self.completed=True
+      sys=self.sys
+    if type(self.trialfunc) != str:
+      trialfunc=self.trialfunc.export_trialfunc()
+    else:
+      trialfunc=self.trialfunc
+
+    with open(infile,'w') as f:
+      for j in range(self.macro_iterations):
+        f.write("method { optimize iterations %i }\n"%self.iterations)
+      f.write(sys),
+      f.write(trialfunc)
+    self.completed=True
      
 ####################################################
 class VarianceReader:

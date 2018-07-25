@@ -14,6 +14,17 @@ class Orbitals:
     self.eigvals=[]
     self.atom_order=()
     self.kpt_weight=0.0
+    self.kpoint=(0.0,0.0,0.0)
+    self.last_orbfile=''
+
+  #------------------------------------------------------------------------------------------
+  def find_min_exp(self):
+    ''' Find minimum exponent in basis. '''
+    allexponents=[]
+    for species in self.basis:
+      for basisel in self.basis[species]:
+        allexponents+=list(basisel['exponents'])
+    return min(allexponents)
 
   #----------------------------------------------------------------------------------------------
   def export_qwalk_basis(self):
@@ -38,27 +49,23 @@ class Orbitals:
             for idx,exp,coef in zip(range(numprim),element['exponents'],element['coefs'])
           ]
     outlines+=['  }','}']
-    return outlines
+    return '\n'.join(outlines)
 
   #----------------------------------------------------------------------------------------------
-  def write_qwalk_orb(self,outfn,nperspin,nvirtual=0,spin_restricted=False):
+  def write_qwalk_orb(self,nperspin,outfn):
     ''' Generate a orb file for QWalk. 
     This just writes to the file because orbfile are necessarily separate in QWalk.
 
     Args:
       outfn (str): file to write to.
       nperspin (tuple): (Nup,Ndown) number of electrons in each spin channel.
-      nvirtual (int): Number of virtual (unoccupied in ground state) orbitals to print for each spin channel.
-      spin_restricted (bool): Up and down orbitals are restricted to be the same.
     '''
-    # Figure out sizes of things.
-    if spin_restricted: nspin=1
-    else:               nspin=2
+    nspin=len(self.eigvecs)
 
     outf=open(outfn,'w')
 
     nao_atom = count_naos(self.basis)
-    totnmo = (max(nperspin)+nvirtual)*nspin
+    totnmo = (max(nperspin))*nspin
 
     # Do the printing.
     coef_cnt = 0
@@ -68,10 +75,10 @@ class Orbitals:
           outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
               .format(moidx+1,aoidx+1,atidx+1,coef_cnt+1))
           coef_cnt += 1
-    eigvec_flat = [self.eigvecs[s][0:nperspin[s]+nvirtual].flatten() for s in range(nspin)] # TODO not memory efficient.
+    eigvec_flat = [self.eigvecs[s].ravel() for s in range(nspin)]
     print_cnt = 0
     outf.write("COEFFICIENTS\n")
-    if (eigvec_flat[0].imag!=0.0).any(): # Complex coefficients
+    if any([(e.imag!=0.0).any() for e in self.eigvecs]):
       for eigv in eigvec_flat: 
         for r,i in zip(eigv.real,eigv.imag):
           outf.write("({:<.12e},{:<.12e}) "\
@@ -84,6 +91,8 @@ class Orbitals:
           outf.write("{:< 15.12e} ".format(r))
           print_cnt+=1
           if print_cnt%5==0: outf.write("\n")
+
+    self.last_orbfile=outfn.split('/')[-1]
 
 ###############################################################################
 def count_naos(basis):
@@ -101,5 +110,4 @@ def count_naos(basis):
     for basis_element in basis[atom]:
       results[atom]+=countmap[basis_element['angular']]
   return results
-
 

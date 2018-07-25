@@ -19,34 +19,22 @@ def export_trialfunc(wf):
 
 #######################################################################
 class Slater:
-  def __init__(self,orbitals,uporbs,downorbs,detweights=(1.0,)):
+  def __init__(self,orbitals,orbfile,states,detweights=(1.0,)):
     ''' Slater wave function object.
 
     Args: 
       orbitals (Orbitals): Orbitals from which you'll select the orbitals. 0-based indexing.
-      uporbs (array-like): which orbitals used for up electrons.
-      downorbs (array-like): which orbitals used for down electrons.
-      kpoint (tuple): kpoint in same form as in Orbitals.
+      orbfile (str): file name where orbitals has written to. See orbitals.write_qwalk_orb().
+        Same string as QWalk orbfile.
+      states (array-like): states[spin channel][determinant][orbital] select orbitals for determinants.
+      detweights (array-like): Weights of determinants for multideterminant expansion. First should be 1.0.
     '''
-    uporbs=array(uporbs)
-    downorbs=array(downorbs)
-
-    # A lot can go wrong with this input. Raise hell if something is wrong.
-    if len(detweights)>1:
-      assert len(uporbs.shape)==2 or len(downorbs.shape)==2,\
-          "Multiple deterimants require specifying weights."
-      assert len(detweights)==uporbs.shape[0] or len(detweights)==downorbs.shape[0],\
-          "Number of determinant weights should be same as number of deteriminants."
-    else:
-      uporbs=array([uporbs])
-      downorbs=array([downorbs])
-      assert (len(uporbs.shape)==1 or uporbs.shape[0]==1),\
-          "Multiple deterimants require specifying weights."
-
     self.orbitals=orbitals
+    self.orbfile=orbfile
     self.detweights=array(detweights)
-    self.uporbs=array(uporbs)
-    self.downorbs=array(downorbs)
+    self.states=array(states)
+    assert (len(self.states.shape)==3) and (self.states.shape[0]==2) and (self.states.shape[1]==self.detweights.shape[0]),\
+        "States array should be nspin by ndeterminant by nelectrons. One detweight per determinant."
    
   #------------------------------------------------
   def export(self):
@@ -55,38 +43,36 @@ class Slater:
       str: Slater wave function section for QWalk.
     '''
 
-    uporbs = array(self.uporbs)+1
-    downorbs = array(self.downorbs)+1
+    states = array(self.states)+1
 
     if any([(e.imag!=0.0).any() for e in self.orbitals.eigvecs]):
       orbstr = "corbitals"
     else:
       orbstr = "orbitals"
 
-    print(uporbs.astype(str))
-    uporblines = [' '.join(det) for det in uporbs.astype(str)]
-    downorblines = [' '.join(det) for det in downorbs.astype(str)]
+    upstatelines = [' '.join(det) for det in states[0].astype(str)]
+    downstatelines = [' '.join(det) for det in states[1].astype(str)]
 
     outlines = [
         "slater",
         "{0} {{".format(orbstr),
         "  magnify 1",
-        "  nmo {0}".format(max(uporbs.max(),downorbs.max())),
-        "  orbfile {0}".format(self.orbitals.last_orbfile),
+        "  nmo {0}".format(states.max()),
+        "  orbfile {0}".format(self.orbfile),
         self.orbitals.export_qwalk_basis(),
         "  centers { useglobal }",
         "}",
         "detwt {{ {} }}".format(' '.join(self.detweights.astype(str))),
         "states {"
       ]
-    for detweight,upline,downline in zip(self.detweights,uporblines,downorblines):
+    for detweight,upline,downline in zip(self.detweights,upstatelines,downstatelines):
       outlines+=[
           "  # Spin up orbitals detweight {}.".format(detweight), 
           "  " + upline,
           "  # Spin down orbitals detweight {}.".format(detweight), 
-          "  " + downline,
-          "}"
+          "  " + downline
         ]
+    outlines+=['}']
     return "\n".join(outlines)
 
   #------------------------------------------------
@@ -112,35 +98,6 @@ class Jastrow:
     '''
 
     return self.text
-  #------------------------------------------------
-  export_trialfunc=export_trialfunc
-
-#######################################################################
-class SlaterJastrow:
-  def __init__(self,slater,jastrow):
-    self.slater=slater
-    self.jastrow=jastrow
-
-  #------------------------------------------------
-  def export(self):
-    ''' Export a Slater section for use in a trialfunction.
-    Args: 
-      orbfn: File name to write the orbitals to. Defaults to "slater_%d_%d_%d"%self.orbitals.kpoint.
-    Returns:
-      str: Slater wave function section for QWalk.
-    '''
-
-    outlines=[
-        'slater-jastrow',
-        '  wf1 {'
-        ]+['    '+line for line in self.slater.export().split('\n')]+[
-        '  }',
-        '  wf2 {'
-        ]+['    '+line for line in self.jastrow.export().split('\n')]+[
-        '  }'
-      ]
-    
-    return '\n'.join(outlines)
   #------------------------------------------------
   export_trialfunc=export_trialfunc
 

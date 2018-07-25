@@ -15,7 +15,7 @@ class Orbitals:
     self.atom_order=()
     self.kpt_weight=0.0
     self.kpoint=(0.0,0.0,0.0)
-    self.last_orbfile=''
+    self.last_orbfile=None # Last path orbfile was written to.
 
   #------------------------------------------------------------------------------------------
   def find_min_exp(self):
@@ -92,7 +92,8 @@ class Orbitals:
           print_cnt+=1
           if print_cnt%5==0: outf.write("\n")
 
-    self.last_orbfile=outfn.split('/')[-1]
+    # Sometimes is useful for scripting.
+    self.last_orbfile=outfn
 
 ###############################################################################
 def count_naos(basis):

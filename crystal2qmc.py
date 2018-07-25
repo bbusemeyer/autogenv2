@@ -303,6 +303,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
 # TODO Is there a way around this? Yes.
 # Alternatively, this can read the CRYSTAL output file and still works!
 def read_outputfile(fname = "prop.in.o"):
+  spin=0
   fin = open(fname,'r')
   for line in fin:
     if "SUMMED SPIN DENSITY" in line:

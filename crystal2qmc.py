@@ -6,8 +6,8 @@ A casual user would be interested in convert_crystal.
 from __future__ import division,print_function
 import numpy as np
 import sys
-from autostruct import Structure
-from autoorb import Orbitals
+from system import System
+from orbitals import Orbitals
 
 def error(message,errortype):
   print(message)
@@ -103,25 +103,25 @@ def convert_crystal(
 
 ###############################################################################
 def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
-  ''' Create Structure and Orbitals objects from Crystal results. 
+  ''' Create System and Orbitals objects from Crystal results. 
   These objects can generate QWalk input files.
 
   Args: 
     gred (str): path to GRED.DAT.
     kred (str): path to KRED.DAT.
   Returns:
-    struct (Structure): Structure object.
+    sys (System): System object.
     orbs (Orbitals): Orbitals object.
   '''
   # This is the pretty-much raw data from the Crystal output files.
   info, lat_parm, ions, basis, pseudo = read_gred(gred)
   eigsys = read_kred(info,basis,kred)
 
-  struct=Structure()
+  sys=System()
 
-  struct.latparm={'latvecs':lat_parm['latvecs']}
-  struct.pseudo=format_pseudo(pseudo,ions)
-  struct.positions=format_positions(ions)
+  sys.latparm={'latvecs':lat_parm['latvecs']}
+  sys.pseudo=format_pseudo(pseudo,ions)
+  sys.positions=format_positions(ions)
 
   allorbs=[]
 
@@ -133,7 +133,7 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
     orbs.atom_order=[periodic_table[n%200-1] for n in ions['atom_nums']]
     allorbs.append(orbs)
 
-  return struct,allorbs
+  return sys,allorbs
 
 ###############################################################################
 def read_gred(gred="GRED.DAT"):

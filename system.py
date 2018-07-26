@@ -1,17 +1,18 @@
 import numpy as np
-periodic_table = [
-  "h","he","li","be","b","c","n","o","f","ne","na","mg","al","si","p","s","cl","ar",
-  "k","ca","sc","ti","v","cr","mn","fe","co","ni","cu","zn","ga","ge","as","se","br",
-  "kr","rb","sr","y","zr","nb","mo","tc","ru","rh","pd","ag","cd","in","sn","sb","te",
-  "i","xe","cs","ba","la","ce","pr","nd","pm","sm","eu","gd","tb","dy","ho","er","tm",
-  "yb","lu","hf","ta","w","re","os","ir","pt","au","hg","tl","pb","bi","po","at","rn",
-  "fr","ra","ac","th","pa","u","np","pu","am","cm","bk","cf","es","fm","md","no","lr",
-  "rf","db","sg","bh","hs","mt","ds","rg","cp","uut","uuq","uup","uuh","uus","uuo"
-]
+periodic_table = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na',
+    'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr',
+    'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr',
+    'Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd',
+    'In', 'Sn', 'Sb', 'Te', 'I', 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd',
+    'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf',
+    'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po',
+    'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm',
+    'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Db', 'Sg', 'Bh', 'Hs',
+    'Mt', 'Ds', 'Rg', 'Cp', 'Uut', 'Uuq', 'Uup', 'Uuh', 'Uus', 'Uuo']
 bohr=1.88972598858 # in Angstroms
 
 ###########################################################################################
-class Structure:
+class System:
   ''' Class containing information:
     - atom placement,
     - atom types,
@@ -29,7 +30,6 @@ class Structure:
     #self.nspin=(1,1) # Not easy to extract. Is it really a property of structure?
     self.group_number=1
     self.latparm={}
-    self.cutoff_divider=7.5
 
   # ----------------------------------------------------------------------------------------
   def import_xyz(self):
@@ -145,7 +145,7 @@ class Structure:
 
     geomlines+=["%i"%len(self.positions)]
     for site in self.positions:
-      elemz=periodic_table.index(site['species'].capitalize())+1
+      elemz=periodic_table.index(site['species'])+1
       # TODO assumes psuedopotential.
       geomlines+=[str(elemz+200)+" %g %g %g"%tuple(site['abc'])]
 
@@ -160,7 +160,7 @@ class Structure:
   def export_qwalk_sys(self,cutoff_divider,nspin,kpoint=(0.0,0.0,0.0)):
     ''' Generate a system section for QWalk.
     Args:
-      cutoff divider (float): calculate using Basis object.
+      cutoff divider (float): calculate using Basis object. 7.5 is a good default for finite systems.
       kpoint (tuple): boundary condition.
     Returns: 
       list: List of the lines (str) making up the qwalk system section.
@@ -245,6 +245,77 @@ class Structure:
       outlines += ["    }","  }","}"]
     return '\n'.join(outlines)+'\n'
 
+  # ----------------------------------------------------------------------------------------
+  def export_jast(self,threebody=False):
+    ''' Makes a unoptimized Jastrow wave function section which should be optimizized before using in QMC.
+    Returns:
+      str: Jastrow section.
+    '''
+    if threebody: raise NotImplementedError("Should be simple to add three-body, but haven't bothered yet.")
+      
+    basis_cutoff = find_basis_cutoff(self.latparm['latvecs'])
+    atom_types = set([pos['species'] for pos in self.positions])
+    outlines = [
+        "jastrow2",
+        "group {",
+        "  optimizebasis",
+        "  eebasis {",
+        "    ee",
+        "    cutoff_cusp",
+        "    gamma 24.0",
+        "    cusp 1.0",
+        "    cutoff {0}".format(basis_cutoff),
+        "  }",
+        "  eebasis {",
+        "    ee",
+        "    cutoff_cusp",
+        "    gamma 24.0",
+        "    cusp 1.0",
+        "    cutoff {0}".format(basis_cutoff),
+        "  }",
+        "  twobody_spin {",
+        "    freeze",
+        "    like_coefficients { 0.25 0.0 }",
+        "    unlike_coefficients { 0.0 0.5 }",
+        "  }",
+        "}",
+        "group {",
+        "  optimize_basis",
+      ]
+    for atom_type in atom_types:
+      outlines += [
+        "  eibasis {",
+        "    {0}".format(atom_type),
+        "    polypade",
+        "    beta0 0.2",
+        "    nfunc 3",
+        "    rcut {0}".format(basis_cutoff),
+        "  }"
+      ]
+    outlines += [
+        "  onebody {",
+      ]
+    for atom_type in atom_types:
+      outlines += [
+        "    coefficients {{ {0} 0.0 0.0 0.0}}".format(atom_type),
+      ]
+    outlines += [
+        "  }",
+        "  eebasis {",
+        "    ee",
+        "    polypade",
+        "    beta0 0.5",
+        "    nfunc 3",
+        "    rcut {0}".format(basis_cutoff),
+        "  }",
+        "  twobody {",
+        "    coefficients { 0.0 0.0 0.0 }",
+        "  }",
+        "}"
+      ]
+
+    return "\n".join(outlines)
+
 ###########################################################################################
 def scrub_err(numstr):
   ''' Remove error bar notation.
@@ -301,6 +372,13 @@ def space_group_format(group_number):
 
 ######################################################################################
 def find_cutoff_divider(latvecs,min_exp):
+  basis_cutoff=find_basis_cutoff(latvecs)
+  cutoff_length=(-np.log(1e-8)/min_exp)**.5
+
+  return basis_cutoff*2.0 / cutoff_length
+
+######################################################################################
+def find_basis_cutoff(latvecs):
   cutoff_divider = 2.000001
   cross01 = np.cross(latvecs[0], latvecs[1])
   cross12 = np.cross(latvecs[1], latvecs[2])
@@ -310,8 +388,4 @@ def find_cutoff_divider(latvecs,min_exp):
   heights[0]=abs(np.dot(latvecs[0], cross12)/np.dot(cross12,cross12)**.5)
   heights[1]=abs(np.dot(latvecs[1], cross02)/np.dot(cross02,cross02)**.5)
   heights[2]=abs(np.dot(latvecs[2], cross01)/np.dot(cross01,cross01)**.5)
-
-  basis_cutoff=min(heights)/cutoff_divider
-  cutoff_length=(-np.log(1e-8)/min_exp)**.5
-
-  return basis_cutoff*2.0 / cutoff_length
+  return min(heights)/cutoff_divider

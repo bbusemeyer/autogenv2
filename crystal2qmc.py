@@ -403,8 +403,8 @@ def read_kred(info,basis,kred="KRED.DAT"):
 def format_pseudo(oldps,oldions):
   ''' Rearrage the pseudopotential data for structure object.'''
   newps={}
-  count=0
   for num in oldps:
+    count=0
     data=oldps[num]
     species=periodic_table[num%200-1]
 

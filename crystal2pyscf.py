@@ -100,10 +100,12 @@ def crystal2pyscf_cell(
   kpts=cell.make_kpts((1,1,1))
   kpts=cell.get_scaled_kpts(kpts)
 
-  mf=pyscf.pbc.dft.KUKS(cell)
 
   # Copy over MO info.
   crydfs=format_eigenstates_cell(cell,cryeigsys,basis_order)
+  if len(crydfs)==1: # hack for restricted.
+    crydfs=[crydfs[0],crydfs[0]]
+  mf=pyscf.pbc.dft.KUKS(cell)
   mf.mo_coeff=np.array([[df[[*range(df.shape[0])]].values] for df in crydfs])
   mf.mo_energy=cryeigsys['eigvals'].reshape(cryeigsys['eig_weights'].shape).swapaxes(0,1)
   mf.mo_occ=np.zeros((2,1,nmo))
@@ -223,7 +225,7 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
 
   # Extract.
   # TODO non-Gamma points.
-  crydfs=[pd.DataFrame(crystal2qmc.eigvec_lookup((0,0,0),cryeigsys,s).T) for s in [0,1]]
+  crydfs=[pd.DataFrame(crystal2qmc.eigvec_lookup((0,0,0),cryeigsys,s).T) for s in range(cryeigsys['nspin'])]
 
   # PySCF basis order (our goal).
   pydf=pd.DataFrame(cell.sph_labels(fmt=False),columns=['atnum','elem','orb','type'])
@@ -247,7 +249,7 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
   def convert_order(key):
     try: return orbmap[key]
     except KeyError: return None
-  for s in [0,1]:
+  for s in range(cryeigsys['nspin']):
     crydfs[s]['type']=crydfs[s]['type'].apply(convert_order)
 
   # Reorder crydf.

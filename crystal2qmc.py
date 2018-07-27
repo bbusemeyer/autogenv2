@@ -404,6 +404,7 @@ def read_outputfile(fname = "prop.in.o"):
   Returns:
     int: spin of the system.
   '''
+  spin=0
   fin = open(fname,'r')
   for line in fin:
     if "SUMMED SPIN DENSITY" in line:
@@ -829,5 +830,5 @@ if __name__ == "__main__":
       help="[=50] Number of unoccupied or virtual orbitals to allow access to.")
   args=parser.parse_args()
 
-  convert_crystal(args.base,args.propout,args.kset,args.nvirtual)
+  convert_crystal(args.base,args.propout,args.real,args.nvirtual)
 

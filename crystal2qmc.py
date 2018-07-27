@@ -125,11 +125,13 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
 
   allorbs=[]
 
-  for kpt in eigsys['kpt_coords']:
+  for kidx,kpt in enumerate(eigsys['kpt_coords']):
     orbs=Orbitals()
     orbs.basis=format_basis(ions,basis)
     orbs.kpoint=(np.array(kpt)/eigsys['nkpts_dir']*2.)
     orbs.eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,s),basis) for s in range(eigsys['nspin'])]
+    orbs.eigvals=eigsys['eigvals'][kidx]
+    orbs.kweight=eigsys['eig_weights'][kidx]
     orbs.atom_order=[periodic_table[n%200-1] for n in ions['atom_nums']]
     allorbs.append(orbs)
 
@@ -366,7 +368,7 @@ def read_kred(info,basis,kred="KRED.DAT"):
   # Eigenvalues: (how many) = (spin) * (number of basis) * (number of kpoints)
   eigsys['nspin'] = info[63]+1
   nevals = eigsys['nspin']*info[6]*nikpts
-  eigsys['eigvals'] = np.array(kred_words[cursor:cursor+nevals],dtype=float)
+  eigsys['eigvals'] = np.array(kred_words[cursor:cursor+nevals],dtype=float).reshape(nikpts,eigsys['nspin'],info[6])
   cursor += nevals
   # Weights of eigenvales--incorperating Fermi energy cutoff.
   nbands = int(round(nevals / nikpts / eigsys['nspin']))

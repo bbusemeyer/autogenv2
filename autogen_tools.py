@@ -89,3 +89,62 @@ def separate_jastrow(wffile,optimizebasis=False):
     if in_jastrow and nopen >= nclose:
       jastlines.append(line)
   return '\n'.join(jastlines)
+
+###############################################################################
+# f orbital normalizations are from 
+# <http://winter.group.shef.ac.uk/orbitron/AOs/4f/equations.html>
+def normalize_eigvec(eigvec,basis):
+  ''' Changes crystal normalization to qwalk normalization.
+  eigvec will also be changed in place (i.e. does not copy).
+  Args:
+    eigvec (array): eigenvectors indexed by vector then AO.
+    basis (dict): basis information. 
+  Returns:
+    array: normalized view of eigvec.
+  '''
+  snorm = 1./(4.*np.pi)**0.5
+  pnorm = snorm*(3.)**.5
+  dnorms = [
+      .5*(5./(4*np.pi))**.5,
+      (15./(4*np.pi))**.5,
+      (15./(4*np.pi))**.5,
+      .5*(15./(4.*np.pi))**.5,
+      (15./(4*np.pi))**.5
+    ]
+  fnorms = [
+      ( 7./(16.*np.pi))**.5,
+      (21./(32.*np.pi))**.5,
+      (21./(32.*np.pi))**.5,
+      (105./(16.*np.pi))**.5, # xyz
+      (105./(4.*np.pi))**.5,
+      (35./(32.*np.pi))**.5,
+      (35./(32.*np.pi))**.5
+    ]
+
+  # Duplicate coefficients for complex, and if multiple basis elements are d.
+  # This is to align properly with the d-components of eigvecs.
+  tmp = [[f for f in dnorms] for i in range(sum(basis['shell_type']==3))]
+  dnorms = []
+  for l in tmp: dnorms += l
+  dnorms = np.array(dnorms)
+  # Likewise for f.
+  tmp = [[f for f in fnorms] for i in range(sum(basis['shell_type']==4))]
+  fnorms = []
+  for l in tmp: fnorms += l
+  fnorms = np.array(fnorms)
+
+  ao_type = []
+  for sidx in range(len(basis['shell_type'])):
+    ao_type += \
+      [basis['shell_type'][sidx] for ao in range(basis['nao_shell'][sidx])]
+  ao_type = np.array(ao_type)
+
+  if any(ao_type==1):
+    error("sp orbtials not implemented in normalize_eigvec(...)","Not implemented")
+
+  eigvec[:,ao_type==0] *= snorm
+  eigvec[:,ao_type==2] *= pnorm
+  eigvec[:,ao_type==3] *= dnorms
+  eigvec[:,ao_type==4] *= fnorms
+
+  return eigvec

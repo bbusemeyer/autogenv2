@@ -54,29 +54,27 @@ class Orbitals:
     self.last_orbfile=None # Last path orbfile was written to.
 
   #----------------------------------------------------------------------------------------------
-  def write_qwalk_orb(self,outfn,nperspin):
+  def write_qwalk_orb(self,outfn):
     ''' Generate a orb file for QWalk. 
     This just writes to the file because orbfile are necessarily separate in QWalk.
 
     Args:
-      nperspin (tuple): (Nup,Ndown) number of electrons in each spin channel.
       outfn (str): file to write to.
     '''
     nspin=len(self.eigvecs)
     outf=open(outfn,'w')
 
     nao_atom = count_naos(self.basis)
-    totnmo = (max(nperspin))*nspin
 
     # Do the printing.
     coef_cnt = 0
-    for moidx in range(totnmo):
+    for moidx in range(sum([e.shape[0] for e in self.eigvecs])):
       for atidx,atom in enumerate(self.atom_order):
         for aoidx in range(nao_atom[atom]):
           outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
               .format(moidx+1,aoidx+1,atidx+1,coef_cnt+1))
           coef_cnt += 1
-    eigvec_flat = [normalize_eigvec(self.eigvecs[s].copy(),basis).ravel() for s in range(nspin)]
+    eigvec_flat = [normalize_eigvec(self.eigvecs[s].copy(),self.basis,self.atom_order).ravel() for s in range(nspin)]
     print_cnt = 0
     outf.write("COEFFICIENTS\n")
     if any([(e.imag!=0.0).any() for e in self.eigvecs]):
@@ -135,7 +133,7 @@ class Orbitals:
       for element in self.basis[species]:
         numprim=element['coefs'].shape[0]
         outlines+=['    %s %d'%(element['angular'],numprim)]
-        outlines+=['    %d %.16f %.16f'%(idx+1,exp,coef)
+        outlines+=['    %d %.16f %.16f'%(idx,exp,coef)
             for idx,exp,coef in zip(range(numprim),element['exponents'],element['coefs'])
           ]
       outlines+=['  }','}']
@@ -150,14 +148,21 @@ class Orbitals:
     Args: 
       weights (array-like): Weights of determinants for multideterminant expansion. First should be 1.0.
       states (array-like): states[determinant][spin channel][orbital] select orbitals for determinants.
+        Indicies should reference whats written in the orbfile.
       orbfile (str): where orbitals are stored on disk (see write_qwalk_orb).
       write_orbfile (bool): Make a new orb file with these specifications. 
         If False, will assume such an orbfile already is set up.
     Returns:
       str: Slater wave function section for QWalk.
     '''
+    if len(self.eigvecs)==1:
+      first_downorb=0
+    else:
+      first_downorb=self.eigvecs[0].shape[0]
+
     # Convert python indexing to QWalk indexing.
     states=array(states)+1
+    states[:,1,:]+=first_downorb
     weights=array(weights)
 
     # Check input validity.

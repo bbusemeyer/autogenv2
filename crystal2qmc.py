@@ -103,13 +103,15 @@ def convert_crystal(
   return files
 
 ###############################################################################
-def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
+def pack_objects(gred="GRED.DAT",kred="KRED.DAT",maxbands=(None,None)):
   ''' Create System and Orbitals objects from Crystal results. 
   These objects can generate QWalk input files.
 
   Args: 
     gred (str): path to GRED.DAT.
     kred (str): path to KRED.DAT.
+    maxbands (tuple): limit on number of orbitals to read in per spin channel.
+      defaults to all availabe orbitals == size of basis set.
   Returns:
     sys (System): System object.
     orbs (Orbitals): Orbitals object.
@@ -130,7 +132,7 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
     orbs=Orbitals()
     orbs.basis=format_basis(ions,basis)
     orbs.kpoint=(np.array(kpt)/eigsys['nkpts_dir']*2.)
-    orbs.eigvecs=[eigvec_lookup(kpt,eigsys,s) for s in range(eigsys['nspin'])]
+    orbs.eigvecs=[eigvec_lookup(kpt,eigsys,s,maxbands=maxbands[s]) for s in range(eigsys['nspin'])]
     orbs.eigvals=eigsys['eigvals'][kidx]
     orbs.kweight=eigsys['eig_weights'][kidx]
     orbs.atom_order=[periodic_table[n%200-1] for n in ions['atom_nums']]
@@ -491,18 +493,23 @@ def format_basis(ions,basis):
 ###############################################################################
 # Look up an eigenvector from KRED.DAT.
 # TODO: Further reduction in memory usage can be had by specifying nvirtual here.
-def eigvec_lookup(kpt,eigsys,spin=0):
+def eigvec_lookup(kpt,eigsys,spin=0,maxbands=None):
   ''' Look up eigenvector at kpt from KRED.DAT using information from eigsys about where the eigenvectors start and end.  
   Args:
     kpt (tuple of int): Kpoint coordinates.
     eigsys (dict): data from read_kred. 
     iscomplex (bool): Is the kpoint complex.
     spin (int): desired spin component. 
-    nvirtual (int): number of virtual orbitals (unoccupied in the ground state) to include. 
+    maxbands (int): highest band to read in. Default is to read in all bands.
   Returns:
     array: eigenstate indexed by [band, ao]
   '''
-  ncpnts = int(eigsys['nbands']* eigsys['nao'])
+  if maxbands is not None:
+    nband=min((eigsys['nbands'],maxbands))
+  else:
+    nband=eigsys['nbands']
+
+  ncpnts = int(nband* eigsys['nao'])
   if eigsys['ikpt_iscmpx'][kpt]:
     ncpnts *= 2
   linesperkpt = ncpnts//4 + int(ncpnts%4>0)
@@ -520,7 +527,7 @@ def eigvec_lookup(kpt,eigsys,spin=0):
     eigvec=eigvec.reshape(ncpnts//2,2)
     eigvec=eigvec[:,0] + eigvec[:,1]*1j # complexify.
 
-  return eigvec.reshape(eigsys['nbands'],eigsys['nao'])
+  return eigvec.reshape(nband,eigsys['nao'])
 
 ###############################################################################
 def read_outputfile(fname = "prop.in.o"):

@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from functools import reduce
 import crystal2qmc
-from crystal2qmc import periodic_table,read_gred, read_kred, read_outputfile
+from crystal2qmc import periodic_table,read_gred, read_kred, read_outputfile, eigvec_lookup
 import pyscf
 import pyscf.lo
 import pyscf.pbc
@@ -55,98 +55,6 @@ def crystal2pyscf_mol(propoutfn="prop.in.o",
   mf.e_tot=np.nan #TODO compute energy and put it here, if needed.
 
   return mol,mf
-
-##########################################################################################################
-def crystal2pyscf_cell(
-    gred="GRED.DAT",
-    kred="KRED.DAT",
-    cryoutfn="prop.in.o",
-    basis='bfd_vtz',
-    mesh=(16,16,16),
-    basis_order=None):
-  ''' Make a PySCF object with solution from a crystal run.
-
-  Args:
-    cryoutfn (str): properties or crystal stdout.
-    basis (str): PySCF basis option--should match the crystal basis.
-  Returns:
-    tuple: (cell,scf) PySCF-equilivent Mole and SCF object.
-  '''
-  #TODO Make basis from crystal output (fix normalization issue).
-  #TODO Generalize spin and kpoint.
-
-  # Load crystal data.
-  info, crylat_parm, cryions, crybasis, crypseudo = read_gred(gred=gred)
-  cryeigsys = read_kred(info,crybasis,kred=kred)
-
-  totspin=read_outputfile(cryoutfn)
-  ntot=int(round(sum(crybasis['charges'])))
-  nmo=int(round(sum(crybasis['nao_shell'])))
-  nup=int(round(0.5*(ntot + totspin)))
-  ndn=int(round(0.5*(ntot - totspin)))
-
-  # Format and input structure.
-  atom=[
-      [periodic_table[atnum%200-1],tuple(pos)]\
-      for atnum,pos in zip(cryions['atom_nums'],cryions['positions'])
-    ]
-
-  cell=pyscf.pbc.gto.Cell()
-  cell.build(atom=atom,a=crylat_parm['latvecs'],unit='bohr',
-      mesh=mesh,basis=basis,ecp='bfd',verbose=1)
-
-  # Get kpoints that PySCF expects.
-  # TODO only Gamma for now.
-  kpts=cell.make_kpts((1,1,1))
-  kpts=cell.get_scaled_kpts(kpts)
-
-  mf=pyscf.pbc.dft.KUKS(cell)
-
-  # Copy over MO info.
-  crydfs=format_eigenstates_cell(cell,cryeigsys,basis_order)
-  mf.mo_coeff=np.array([[df[[*range(df.shape[0])]].values] for df in crydfs])
-  mf.mo_energy=cryeigsys['eigvals'].reshape(cryeigsys['eig_weights'].shape).swapaxes(0,1)
-  mf.mo_occ=np.zeros((2,1,nmo))
-  mf.mo_occ[0,0,0:nup]+=1
-  mf.mo_occ[1,0,0:ndn]+=1
-  mf.e_tot=np.nan #TODO compute energy and put it here, if needed.
-
-  return cell,mf
-
-##########################################################################################################
-def fix_basis_order(basis_order):
-  ''' Return the order to rearrange the basis to order it by angular momentum (like PySCF).
-
-  Example:
-    >>> # for 's','p','d','s','s','p','p','d','d','f'
-    >>> fix=_fix_basis_order([0,1,2,0,0,1,1,2,2,3])
-    >>> print(fix)
-
-    array([0,9,10,1,2,3,11,12,13,
-           14,15,16,4,5,6,7,8,17,
-           18,19,20,21,22,23,24,
-           25,26,27,28,29,30,31,32,33])
-  Args:
-    basis_order (list): Current basis order.
-  Returns:
-    ndarray: index for reordering.
-  '''
-  # Sort by l
-  ams=[]
-  for i,l in enumerate(basis_order):
-    ams+=[l for i in range(2*l+1)]
-  amsorted=np.argsort(ams)
-  
-  # Sort within l by order of appearance.
-  start=0
-  counts=dict(Counter(basis_order))
-  for l in range(0,max(basis_order)+1):
-    counts[l]=(2*l+1)*counts[l]
-    end=start+counts[l]
-    amsorted[start:end]=sorted(amsorted[start:end])
-    start+=counts[l]
-
-  return amsorted
 
 ##########################################################################################################
 def format_eigenstates_mol(mol,cryeigsys,basis_order=None):
@@ -207,12 +115,120 @@ def format_eigenstates_mol(mol,cryeigsys,basis_order=None):
   return crydfs
 
 ##########################################################################################################
-def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
+def crystal2pyscf_cell(
+    gred="GRED.DAT",
+    kred="KRED.DAT",
+    cryoutfn="prop.in.o",
+    basis='bfd_vtz',
+    mesh=None,
+    basis_order=None):
+  ''' Make a PySCF object with solution from a crystal run.
+
+  Args:
+    cryoutfn (str): properties or crystal stdout.
+    basis (str): PySCF basis option--should match the crystal basis.
+  Returns:
+    tuple: (cell,scf) PySCF-equilivent Mole and SCF object.
+  '''
+  #TODO Make basis from crystal output (fix normalization issue).
+  #TODO Generalize spin and kpoint.
+
+  # Load crystal data.
+  info, crylat_parm, cryions, crybasis, crypseudo = read_gred(gred=gred)
+  cryeigsys = read_kred(info,crybasis,kred=kred)
+
+  totspin=read_outputfile(cryoutfn)
+  ntot=int(round(sum(crybasis['charges'])))
+  nmo=int(round(sum(crybasis['nao_shell'])))
+  nup=int(round(0.5*(ntot + totspin)))
+  ndn=int(round(0.5*(ntot - totspin)))
+
+  # Format and input structure.
+  atom=[
+      [periodic_table[atnum%200-1],tuple(pos)]\
+      for atnum,pos in zip(cryions['atom_nums'],cryions['positions'])
+    ]
+
+  cell=pyscf.pbc.gto.Cell()
+  cell.build(atom=atom,a=crylat_parm['latvecs'],unit='bohr',
+      mesh=mesh,basis=basis,ecp='bfd',verbose=1)
+
+  # Get kpoints that PySCF expects.
+  # TODO only Gamma for now.
+  kpts=cell.make_kpts((1,1,1))
+  kpts=cell.get_scaled_kpts(kpts)
+
+  mf=pyscf.pbc.dft.KUKS(cell)
+
+  # Copy over MO info.
+  crydfs=format_eigenstates_cell(cell,[eigvec_lookup((0,0,0),cryeigsys,s) for s in range(2)],basis_order)
+  mf.mo_coeff=np.array([[df[[*range(df.shape[0])]].values] for df in crydfs])
+  mf.mo_energy=cryeigsys['eigvals'].reshape(cryeigsys['eig_weights'].shape).swapaxes(0,1)
+  mf.mo_occ=np.zeros((2,1,nmo))
+  mf.mo_occ[0,0,0:nup]+=1
+  mf.mo_occ[1,0,0:ndn]+=1
+  mf.e_tot=np.nan #TODO compute energy and put it here, if needed.
+
+  return cell,mf
+
+##########################################################################################################
+def objects2pyscf(
+    system,
+    orbitals,
+    nperspin,
+    basis,
+    basis_order=None,
+    mesh=None):
+  ''' Make a PySCF object with data from orbitals and system object. 
+
+  Args:
+    system (System): System object. See crystal2qmc.pack_objects.
+    orbitals (list): list of Orbitals. See crystal2qmc.pack_objects.
+    nperspin (tuple): number of electrons in each spin channel.
+    basis (dict or str): pyscf basis argument. 
+    basis_order (array-like): see fixed_basis_order.
+  Returns:
+    (Cell, SCF): Cell and SCF object containing the data from the objects.
+  '''
+  #TODO Make basis from crystal output (fix normalization issue).
+  #  It should be possible to get the basis from the internals of orbitals, but
+  #  the normalization is off so it doesn't work yet. 
+  #  Should be able to get the normalization by combining crystal2qwalk and pyscf2qwalk.
+  #TODO Generalize spin and kpoint.
+
+  # Format and input structure.
+  atom=[ (pos['species'],pos['xyz']) for pos in system.positions ]
+
+  cell=pyscf.pbc.gto.Cell()
+  cell.build(atom=atom,a=system.latparm['latvecs'],unit='bohr',
+      mesh=mesh,basis=basis,ecp='bfd',verbose=1)
+      #mesh=mesh,basis=orbitals[0].export_pyscf_basis(),ecp='bfd',verbose=1)  # no no: see TODO about normalization
+
+  # Get kpoints that PySCF expects.
+  # TODO only Gamma for now.
+  kpts=cell.make_kpts((1,1,1))
+  kpts=cell.get_scaled_kpts(kpts)
+
+  mf=pyscf.pbc.dft.KUKS(cell)
+
+  # Copy over MO info.
+  crydfs=format_eigenstates_cell(cell,orbitals[0].eigvecs,basis_order)
+  mf.mo_coeff=np.array([[df[[*range(df.shape[0])]].values] for df in crydfs])
+  #mf.mo_energy=orbitals[0].eigvals.swapaxes(0,1)
+  mf.mo_occ=np.zeros((2,1,orbitals[0].eigvecs[0].shape[0]))
+  mf.mo_occ[0,0,0:nperspin[0]]+=1
+  mf.mo_occ[1,0,0:nperspin[0]]+=1
+  mf.e_tot=np.nan #TODO compute energy and put it here, if needed.
+
+  return cell,mf
+
+##########################################################################################################
+def format_eigenstates_cell(cell,eigvecs,basis_order=None):
   ''' Organize crystal eigenstates to be consistent with PySCF order.
 
   Args: 
     cell (Cell): Contains structure in PySCF object.
-    cryeigsys (dict): eigenstate info from cryeigsys.
+    eigvecs (array-like): eigenvectors index by kpt,spin,eigvec,component.
     basis_order (list): order that basis set is entered. 
       None means it's sorted by angular momentum, like PySCF.
       Example: for 's','p','d','s','s','p','p','d','d',
@@ -223,7 +239,7 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
 
   # Extract.
   # TODO non-Gamma points.
-  crydfs=[pd.DataFrame(crystal2qmc.eigvec_lookup((0,0,0),cryeigsys,s).T) for s in [0,1]]
+  crydfs=[pd.DataFrame(eigvecs[s].T) for s in [0,1]]
 
   # PySCF basis order (our goal).
   pydf=pd.DataFrame(cell.sph_labels(fmt=False),columns=['atnum','elem','orb','type'])
@@ -254,6 +270,41 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
   crydfs=[pydf.merge(df,on=['atnum','elem','orb','type']) for df in crydfs]
 
   return crydfs
+
+##########################################################################################################
+def fix_basis_order(basis_order):
+  ''' Return the order to rearrange the basis to order it by angular momentum (like PySCF).
+
+  Example:
+    >>> # for 's','p','d','s','s','p','p','d','d','f'
+    >>> fix=_fix_basis_order([0,1,2,0,0,1,1,2,2,3])
+    >>> print(fix)
+
+    array([0,9,10,1,2,3,11,12,13,
+           14,15,16,4,5,6,7,8,17,
+           18,19,20,21,22,23,24,
+           25,26,27,28,29,30,31,32,33])
+  Args:
+    basis_order (list): Current basis order.
+  Returns:
+    ndarray: index for reordering.
+  '''
+  # Sort by l
+  ams=[]
+  for i,l in enumerate(basis_order):
+    ams+=[l for i in range(2*l+1)]
+  amsorted=np.argsort(ams)
+  
+  # Sort within l by order of appearance.
+  start=0
+  counts=dict(Counter(basis_order))
+  for l in range(0,max(basis_order)+1):
+    counts[l]=(2*l+1)*counts[l]
+    end=start+counts[l]
+    amsorted[start:end]=sorted(amsorted[start:end])
+    start+=counts[l]
+
+  return amsorted
 
 ##########################################################################################################
 def make_basis(crybasis,ions,base="qwalk"):

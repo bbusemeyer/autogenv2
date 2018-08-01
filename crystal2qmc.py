@@ -8,6 +8,7 @@ import numpy as np
 import sys
 from system import System
 from orbitals import Orbitals
+from autogen_tools import normalize_eigvec
 
 def error(message,errortype):
   print(message)
@@ -129,7 +130,7 @@ def pack_objects(gred="GRED.DAT",kred="KRED.DAT"):
     orbs=Orbitals()
     orbs.basis=format_basis(ions,basis)
     orbs.kpoint=(np.array(kpt)/eigsys['nkpts_dir']*2.)
-    orbs.eigvecs=[normalize_eigvec(eigvec_lookup(kpt,eigsys,s),basis) for s in range(eigsys['nspin'])]
+    orbs.eigvecs=[eigvec_lookup(kpt,eigsys,s) for s in range(eigsys['nspin'])]
     orbs.eigvals=eigsys['eigvals'][kidx]
     orbs.kweight=eigsys['eig_weights'][kidx]
     orbs.atom_order=[periodic_table[n%200-1] for n in ions['atom_nums']]
@@ -672,57 +673,6 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write("{:< 15.12e} ".format(r))
         print_cnt+=1
         if print_cnt%5==0: outf.write("\n")
-
-###############################################################################
-# f orbital normalizations are from 
-# <http://winter.group.shef.ac.uk/orbitron/AOs/4f/equations.html>
-def normalize_eigvec(eigvec,basis):
-  snorm = 1./(4.*np.pi)**0.5
-  pnorm = snorm*(3.)**.5
-  dnorms = [
-      .5*(5./(4*np.pi))**.5,
-      (15./(4*np.pi))**.5,
-      (15./(4*np.pi))**.5,
-      .5*(15./(4.*np.pi))**.5,
-      (15./(4*np.pi))**.5
-    ]
-  fnorms = [
-      ( 7./(16.*np.pi))**.5,
-      (21./(32.*np.pi))**.5,
-      (21./(32.*np.pi))**.5,
-      (105./(16.*np.pi))**.5, # xyz
-      (105./(4.*np.pi))**.5,
-      (35./(32.*np.pi))**.5,
-      (35./(32.*np.pi))**.5
-    ]
-
-  # Duplicate coefficients for complex, and if multiple basis elements are d.
-  # This is to align properly with the d-components of eigvecs.
-  tmp = [[f for f in dnorms] for i in range(sum(basis['shell_type']==3))]
-  dnorms = []
-  for l in tmp: dnorms += l
-  dnorms = np.array(dnorms)
-  # Likewise for f.
-  tmp = [[f for f in fnorms] for i in range(sum(basis['shell_type']==4))]
-  fnorms = []
-  for l in tmp: fnorms += l
-  fnorms = np.array(fnorms)
-
-  ao_type = []
-  for sidx in range(len(basis['shell_type'])):
-    ao_type += \
-      [basis['shell_type'][sidx] for ao in range(basis['nao_shell'][sidx])]
-  ao_type = np.array(ao_type)
-
-  if any(ao_type==1):
-    error("sp orbtials not implemented in normalize_eigvec(...)","Not implemented")
-
-  eigvec[:,ao_type==0] *= snorm
-  eigvec[:,ao_type==2] *= pnorm
-  eigvec[:,ao_type==3] *= dnorms
-  eigvec[:,ao_type==4] *= fnorms
-
-  return eigvec
 
 ###############################################################################
 # TODO Generalize to no pseudopotential.

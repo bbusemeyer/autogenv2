@@ -1,5 +1,6 @@
 import crystal2qmc
 from numpy import array
+from autogen_tools import normalize_eigvec
 
 #######################################################################
 def export_trialfunc(wfsection):
@@ -75,7 +76,7 @@ class Orbitals:
           outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
               .format(moidx+1,aoidx+1,atidx+1,coef_cnt+1))
           coef_cnt += 1
-    eigvec_flat = [self.eigvecs[s].ravel() for s in range(nspin)]
+    eigvec_flat = [normalize_eigvec(self.eigvecs[s].copy(),basis).ravel() for s in range(nspin)]
     print_cnt = 0
     outf.write("COEFFICIENTS\n")
     if any([(e.imag!=0.0).any() for e in self.eigvecs]):
@@ -91,6 +92,29 @@ class Orbitals:
           outf.write("{:< 15.12e} ".format(r))
           print_cnt+=1
           if print_cnt%5==0: outf.write("\n")
+
+  #----------------------------------------------------------------------------------------------
+  def export_pyscf_basis(self):
+    from pyscf.gto.basis import parse
+    angmap={
+          'S':'s',
+          'P':'p',
+          '5D':'d',
+          '7F_crystal':'f',
+          'G':'g',
+          'H':'h'
+        }
+
+    pyscfbasis={}
+    for species in self.basis:
+      outlines=[]
+      for element in self.basis[species]:
+        outlines+=['%s %s'%(species,angmap[element['angular']])]
+        for exp,coef in zip(element['exponents'],element['coefs']):
+          outlines+=['  %.16f %.16f'%(exp,coef)]
+      pyscfbasis[species]=parse('\n'.join(outlines))
+
+    return pyscfbasis
 
   #----------------------------------------------------------------------------------------------
   def export_qwalk_basis(self):
@@ -114,7 +138,7 @@ class Orbitals:
         outlines+=['    %d %.16f %.16f'%(idx+1,exp,coef)
             for idx,exp,coef in zip(range(numprim),element['exponents'],element['coefs'])
           ]
-    outlines+=['  }','}']
+      outlines+=['  }','}']
     return '\n'.join(outlines)
 
   #------------------------------------------------

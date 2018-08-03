@@ -2,27 +2,6 @@ import crystal2qmc
 from numpy import array
 from autogen_tools import normalize_eigvec
 
-#######################################################################
-def make_slaterjastrow(slatersection,jastrowsection):
-  ''' Wrapper for joining Slater and Jastrow in a sacred union. 
-
-  Args:
-    slatersection (str): slater wave function section for QWalk.
-    jastrowsection (str): slater wave function section for QWalk.
-  Returns:
-    str: Slater-Jastrow wave function section.
-  '''
-  outlines=[
-      'slater-jastrow',
-      '  wf1 {'
-      ]+['    '+line for line in slatersection.split('\n')]+[
-      '  }',
-      '  wf2 {'
-      ]+['    '+line for line in jastrowsection.split('\n')]+[
-      '  }'
-    ]
-  return '\n'.join(outlines)
-
 #################################################################################################
 class Orbitals:
   ''' Class containing information defining a set of single-particle orbitals.
@@ -126,43 +105,25 @@ class Orbitals:
       outlines+=['  }','}']
     return '\n'.join(outlines)
 
-  #------------------------------------------------
-  def export_slater(self,weights,states,orbfile,write_orbfile=True):
-    ''' Export a Slater section for use in a trialfunction.
-    It is far more efficient to write an orbfile and set the write_orbfile to False.
-    In that case, pass the orbfile from that write.
-
+  #----------------------------------------------------------------------------------------------
+  def export_qwalk_orbitals(self,orbfn):
+    ''' Generate a orbitals section for QWalk.
     Args: 
-      weights (array-like): Weights of determinants for multideterminant expansion. First should be 1.0.
-      states (array-like): states[determinant][spin channel][orbital] select orbitals for determinants.
-        Indicies should reference whats written in the orbfile.
-      orbfile (str): where orbitals are stored on disk (see write_qwalk_orb).
-      write_orbfile (bool): Make a new orb file with these specifications. 
-        If False, will assume such an orbfile already is set up.
+      orbfn (str): file name of orb file (see write_qwalk_orb).
     Returns:
-      str: Slater wave function section for QWalk.
+      str: orbitals section for QWalk.
     '''
-    if len(self.eigvecs)==1:
-      first_downorb=0
-    else:
-      first_downorb=self.eigvecs[0].shape[0]
-
-
-    if write_orbfile:
-      self.write_qwalk_orb(orbfile)
-
-    if 
-      orbstr = "corbitals"
-    else:
-      orbstr = "orbitals"
-
-    return Slater(
-        weights=weights,
-        states=states,
-        orbfile=orbfile,
-        iscomplex=any([(e.imag!=0.0).any() for e in self.eigvecs])
-        first_downorb=first_downorb
-      )
+    iscomplex=any([(e.imag!=0.0).any() for e in self.eigvecs])
+    outlines=[
+      "{0}orbitals {{".format(('','c')[iscomplex]),
+      "  magnify 1",
+      "  nmo {0}".format(sum([e.shape[0] for e in self.eigvecs])),
+      "  orbfile {0}".format(orbfn),
+      self.export_qwalk_basis(),
+      "  centers { useglobal }",
+      "}"
+    ]
+    return '\n'.join(outlines)
 
 ###############################################################################
 def find_min_exp(basis):

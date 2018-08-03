@@ -31,6 +31,7 @@ def average_section(opts):
   return outlines
 
 ################################################
+# This can probably use the orbitals' export orbitals routine instead.
 def tbdm_deriv(orbfile,basissec,orbs,mode='obdm'):
   outlines=[
         '  average { average_derivative_dm',

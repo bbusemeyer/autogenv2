@@ -1,6 +1,8 @@
 from __future__ import print_function
 import os
 import average_tools as avg
+from trialfunc import export_qwalk_trialfunc
+
 ####################################################
 class VMCWriter:
   def __init__(self,
@@ -10,7 +12,7 @@ class VMCWriter:
         minblocks=10,
         nblock=100,
         averages=''
-      )
+      ):
     ''' Object for producing input into a VMC QWalk run. 
     Args:
       options (dict): editable options are as follows.
@@ -30,7 +32,6 @@ class VMCWriter:
 
     self.qmc_abr='VMC'
     self.completed=False
-    self.set_options(options)
 
   #-----------------------------------------------
   def qwalk_input(self,infile):
@@ -39,9 +40,9 @@ class VMCWriter:
     else:
       system=self.system
     if type(self.trialfunc) is not str:
-      trialfunc=self.trialfunc.export_qwalk_trialfunc()
+      trialfunc=export_qwalk_trialfunc(self.trialfunc)
     else:
-      system=self.trialfunc
+      trialfunc=self.trialfunc
 
     outlines=[
         "method { VMC",

@@ -7,17 +7,19 @@ class VMCWriter:
     ''' Object for producing input into a VMC QWalk run. 
     Args:
       options (dict): editable options are as follows.
-        trialfunc (str): system and trial wavefunction section.
+        system (str): system section.
+        trialfunc (str): trial wavefunction section.
         errtol (float): tolerance for the estimated energy error. 
         extra_observables (list): see `average_tools.py` for how to use this.
         minblocks (int): minimum number of VMC steps to take, considering equillibration time.
         iterations (int): number of VMC steps to attempt.
     '''
+    self.system=''
     self.trialfunc=''
     self.errtol=0.1
     self.minblocks=10 
     self.nblock=100
-    self.extra_observables=[]
+    self.averages=''
 
     self.qmc_abr='VMC'
     self.completed=False
@@ -36,10 +38,6 @@ class VMCWriter:
         raise ValueError("Error:",k,"not a keyword for VMCWriter")
       selfdict[k]=d[k]
 
-    # Check completeness of average generator options.
-    for avg_generator in self.extra_observables:
-      avg.check_opts(avg_generator)
-
   #-----------------------------------------------
   def qwalk_input(self,infile):
     if self.trialfunc=='':
@@ -47,12 +45,13 @@ class VMCWriter:
       self.completed=False
     else:
       outlines=[
-          "method { VMC nblock %i"%(self.nblock)
+          "method { VMC",
+          "  nblock %i"%(self.nblock)
+        ]+['  '+line for line in self.averages.split('\n')]+[
+          "}"
         ]
-      for avg_opts in self.extra_observables:
-        outlines+=avg.average_section(avg_opts)
-      outlines+=["}"]
-      outlines+=self.trialfunc.split('\n')
+      outlines.append(self.system)
+      outlines.append(self.trialfunc)
 
       with open(infile,'w') as f:
         f.write('\n'.join(outlines))

@@ -47,7 +47,7 @@ class VMCWriter:
       self.completed=False
     else:
       outlines=[
-          "method { VMC timestep %g nblock %i"%(self.timestep,self.nblock)
+          "method { VMC nblock %i"%(self.nblock)
         ]
       for avg_opts in self.extra_observables:
         outlines+=avg.average_section(avg_opts)

@@ -537,6 +537,7 @@ def read_outputfile(fname = "prop.in.o"):
   Returns:
     int: spin of the system.
   '''
+  spin=0
   fin = open(fname,'r')
   for line in fin:
     if "SUMMED SPIN DENSITY" in line:
@@ -664,7 +665,7 @@ def write_orb(eigsys,basis,ions,kpt,outfn,maxmo_spin=-1):
         outf.write(" {:5d} {:5d} {:5d} {:5d}\n"\
             .format(moidx,aoidx,atidx,coef_cnt))
         coef_cnt += 1
-  eigvec_flat = [e[0:maxmo_spin].flatten() for e in eigvecs]
+  eigvec_flat = [e[0:maxmo_spin].ravel() for e in eigvecs]
   print_cnt = 0
   outf.write("COEFFICIENTS\n")
   if eigsys['ikpt_iscmpx'][kpt]: #complex coefficients

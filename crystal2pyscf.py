@@ -158,7 +158,6 @@ def crystal2pyscf_cell(
   kpts=cell.make_kpts((1,1,1))
   kpts=cell.get_scaled_kpts(kpts)
 
-  mf=pyscf.pbc.dft.KUKS(cell)
 
   # Copy over MO info.
   crydfs=format_eigenstates_cell(cell,[eigvec_lookup((0,0,0),cryeigsys,s) for s in range(2)],basis_order)
@@ -263,7 +262,7 @@ def format_eigenstates_cell(cell,eigvecs,basis_order=None):
   def convert_order(key):
     try: return orbmap[key]
     except KeyError: return None
-  for s in [0,1]:
+  for s in range(cryeigsys['nspin']):
     crydfs[s]['type']=crydfs[s]['type'].apply(convert_order)
 
   # Reorder crydf.

@@ -3,60 +3,59 @@ import os
 import average_tools as avg
 ####################################################
 class VMCWriter:
-  def __init__(self,options={}):
+  def __init__(self,
+        system,
+        trialfunc,
+        errtol=0.1,
+        minblocks=10,
+        nblock=100,
+        averages=''
+      )
     ''' Object for producing input into a VMC QWalk run. 
     Args:
       options (dict): editable options are as follows.
-        system (str): system section.
-        trialfunc (str): trial wavefunction section.
+        system (System or str): system object or system section.
+        trialfunc (TrialFunc or str): TrialFunc object or trial wavefunction section.
         errtol (float): tolerance for the estimated energy error. 
         extra_observables (list): see `average_tools.py` for how to use this.
         minblocks (int): minimum number of VMC steps to take, considering equillibration time.
         iterations (int): number of VMC steps to attempt.
     '''
-    self.system=''
-    self.trialfunc=''
-    self.errtol=0.1
-    self.minblocks=10 
-    self.nblock=100
-    self.averages=''
+    self.system=system
+    self.trialfunc=trialfunc
+    self.errtol=errtol
+    self.minblocks=minblocks
+    self.nblock=nblock
+    self.averages=averages
 
     self.qmc_abr='VMC'
     self.completed=False
     self.set_options(options)
 
   #-----------------------------------------------
-    
-  def set_options(self, d):
-    ''' Save setting of options.
-    Args: 
-      d (dict): attributes to update.
-    '''
-    selfdict=self.__dict__
-    for k in d.keys():
-      if not k in selfdict.keys():
-        raise ValueError("Error:",k,"not a keyword for VMCWriter")
-      selfdict[k]=d[k]
-
-  #-----------------------------------------------
   def qwalk_input(self,infile):
-    if self.trialfunc=='':
-      print(self.__class__.__name__,": Trial function not ready. Postponing input file generation.")
-      self.completed=False
+    if type(self.system) is not str:
+      system=self.system.export_qwalk_sys()
     else:
-      outlines=[
-          "method { VMC",
-          "  nblock %i"%(self.nblock)
-        ]+['  '+line for line in self.averages.split('\n')]+[
-          "}"
-        ]
-      outlines.append(self.system)
-      outlines.append(self.trialfunc)
+      system=self.system
+    if type(self.trialfunc) is not str:
+      trialfunc=self.trialfunc.export_qwalk_trialfunc()
+    else:
+      system=self.trialfunc
 
-      with open(infile,'w') as f:
-        f.write('\n'.join(outlines))
+    outlines=[
+        "method { VMC",
+        "  nblock %i"%(self.nblock)
+      ]+['  '+line for line in self.averages.split('\n')]+[
+        "}"
+      ]
+    outlines.append(system)
+    outlines.append(trialfunc)
 
-      self.completed=True
+    with open(infile,'w') as f:
+      f.write('\n'.join(outlines))
+
+    self.completed=True
 
      
 ####################################################

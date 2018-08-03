@@ -3,19 +3,6 @@ from numpy import array
 from autogen_tools import normalize_eigvec
 
 #######################################################################
-def export_trialfunc(wfsection):
-  ''' Wrapper for making making a wave function section into a trialfunc.
-  Args:
-    wfsection (str): wave function section for QWalk.
-  Returns:
-    str: trialfunc section.
-  '''
-  outlines=['trialfunc { ']+\
-      ['  '+line for line in wfsection.split('\n')]+\
-      ['}']
-  return '\n'.join(outlines)+'\n'
-
-#######################################################################
 def make_slaterjastrow(slatersection,jastrowsection):
   ''' Wrapper for joining Slater and Jastrow in a sacred union. 
 
@@ -140,7 +127,7 @@ class Orbitals:
     return '\n'.join(outlines)
 
   #------------------------------------------------
-  def export_qwalk_slater(self,weights,states,orbfile,write_orbfile=True):
+  def export_slater(self,weights,states,orbfile,write_orbfile=True):
     ''' Export a Slater section for use in a trialfunction.
     It is far more efficient to write an orbfile and set the write_orbfile to False.
     In that case, pass the orbfile from that write.
@@ -160,47 +147,22 @@ class Orbitals:
     else:
       first_downorb=self.eigvecs[0].shape[0]
 
-    # Convert python indexing to QWalk indexing.
-    states=array(states)+1
-    states[:,1,:]+=first_downorb
-    weights=array(weights)
-
-    # Check input validity.
-    assert (len(states.shape)==3) and (states.shape[1]==2) and (states.shape[0]==weights.shape[0]),\
-        "States array should be nspin by ndeterminant by nelectrons. One detweight per determinant."
 
     if write_orbfile:
       self.write_qwalk_orb(orbfile)
 
-    if any([(e.imag!=0.0).any() for e in self.eigvecs]):
+    if 
       orbstr = "corbitals"
     else:
       orbstr = "orbitals"
 
-    upstatelines = [' '.join(det[0]) for det in states.astype(str)]
-    downstatelines = [' '.join(det[1]) for det in states.astype(str)]
-
-    outlines = [
-        "slater",
-        "{0} {{".format(orbstr),
-        "  magnify 1",
-        "  nmo {0}".format(states.max()),
-        "  orbfile {0}".format(orbfile),
-        self.export_qwalk_basis(),
-        "  centers { useglobal }",
-        "}",
-        "detwt {{ {} }}".format(' '.join(weights.astype(str))),
-        "states {"
-      ]
-    for detweight,upline,downline in zip(weights,upstatelines,downstatelines):
-      outlines+=[
-          "  # Spin up orbitals detweight {}.".format(detweight), 
-          "  " + upline,
-          "  # Spin down orbitals detweight {}.".format(detweight), 
-          "  " + downline
-        ]
-    outlines+=['}']
-    return "\n".join(outlines)
+    return Slater(
+        weights=weights,
+        states=states,
+        orbfile=orbfile,
+        iscomplex=any([(e.imag!=0.0).any() for e in self.eigvecs])
+        first_downorb=first_downorb
+      )
 
 ###############################################################################
 def find_min_exp(basis):

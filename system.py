@@ -249,8 +249,10 @@ class System:
   def export_jast(self,threebody=False):
     ''' Makes a unoptimized Jastrow wave function section which should be optimizized before using in QMC.
     Returns:
-      str: Jastrow section.
+      Jastrow: Jastrow object.
     '''
+    from Trialfunc import Jastrow 
+
     if threebody: raise NotImplementedError("Should be simple to add three-body, but haven't bothered yet.")
       
     basis_cutoff = find_basis_cutoff(self.latparm['latvecs'])
@@ -314,7 +316,7 @@ class System:
         "}"
       ]
 
-    return "\n".join(outlines)
+    return Jastrow('\n'.join(outlines))
 
 ###########################################################################################
 def scrub_err(numstr):

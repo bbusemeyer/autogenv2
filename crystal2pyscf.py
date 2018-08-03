@@ -10,7 +10,6 @@ import pyscf
 import pyscf.lo
 import pyscf.pbc
 import pyscf.pbc.dft
-import downfold_tools as dt
 from collections import Counter
 
 ##########################################################################################################
@@ -50,7 +49,7 @@ def crystal2pyscf_mol(propoutfn="prop.in.o",
   crydfs=format_eigenstates_mol(mol,cryeigsys,basis_order)
   nvals=len(cryeigsys['eigvals'])//nspin
   mf.mo_energy=[cryeigsys['eigvals'][:nvals],cryeigsys['eigvals'][nvals:]]
-  mf.mo_coeff=np.array([df[[*range(df.shape[0])]].values for df in crydfs])
+  mf.mo_coeff=np.array([df[list(range(df.shape[0]))].values for df in crydfs])
   mf.mo_occ=np.array([(cryeigsys['eig_weights'][0][s]>1e-8).astype(float) for s in [0,1]])
   mf.e_tot=np.nan #TODO compute energy and put it here, if needed.
 
@@ -161,7 +160,7 @@ def crystal2pyscf_cell(
 
   # Copy over MO info.
   crydfs=format_eigenstates_cell(cell,[eigvec_lookup((0,0,0),cryeigsys,s) for s in range(2)],basis_order)
-  mf.mo_coeff=np.array([[df[[*range(df.shape[0])]].values] for df in crydfs])
+  mf.mo_coeff=np.array([[df[list(range(df.shape[0]))].values] for df in crydfs])
   mf.mo_energy=cryeigsys['eigvals'].reshape(cryeigsys['eig_weights'].shape).swapaxes(0,1)
   mf.mo_occ=np.zeros((2,1,nmo))
   mf.mo_occ[0,0,0:nup]+=1
@@ -212,7 +211,7 @@ def objects2pyscf(
 
   # Copy over MO info.
   crydfs=format_eigenstates_cell(cell,orbitals[0].eigvecs,basis_order)
-  mf.mo_coeff=np.array([[df[[*range(df.shape[0])]].values] for df in crydfs])
+  mf.mo_coeff=np.array([[df[list(range(df.shape[0]))].values] for df in crydfs])
   #mf.mo_energy=orbitals[0].eigvals.swapaxes(0,1)
   mf.mo_occ=np.zeros((2,1,orbitals[0].eigvecs[0].shape[0]))
   mf.mo_occ[0,0,0:nperspin[0]]+=1

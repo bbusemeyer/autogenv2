@@ -470,7 +470,7 @@ def check_tests(reffn='refs.json'):
 
   print("#######################################")
   print("### Results of tests ##################" )
-  print("%d jobs failed to match reference."%len(report))
+  print("%d/%d=%f jobs failed to match reference."%(len(report),len(jobs),len(report)/len(jobs)))
   print('\n'.join(report))
 
 def compare_crystal(job,ref):
@@ -487,7 +487,7 @@ def compare_crystal(job,ref):
 
   return issame
 
-def compare_qwalk(job,ref,nsigma=3):
+def compare_qwalk(job,ref,nsigma=2):
   ''' Make sure two qwalk jobs have the same results within error.
   Args:
     job (Manager): What you'd like to check. 

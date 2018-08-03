@@ -1,4 +1,4 @@
-from manager_tools import resolve_status, update_attributes
+from autogen_tools import resolve_status, update_attributes
 from crystal import CrystalReader
 from propertiesreader import PropertiesReader
 from autorunner import RunnerPBS

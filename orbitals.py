@@ -1,4 +1,3 @@
-import crystal2qmc
 from numpy import array
 from autogen_tools import normalize_eigvec
 

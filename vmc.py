@@ -11,6 +11,7 @@ class VMCWriter:
         errtol=0.1,
         minblocks=10,
         nblock=100,
+        optimize_det=False,
         averages=''
       ):
     ''' Object for producing input into a VMC QWalk run. 
@@ -19,9 +20,9 @@ class VMCWriter:
         system (System or str): system object or system section.
         trialfunc (TrialFunc or str): TrialFunc object or trial wavefunction section.
         errtol (float): tolerance for the estimated energy error. 
-        extra_observables (list): see `average_tools.py` for how to use this.
+        averages (str): averages section in qwalk.
+        optimize_det (bool): treat coefficients of slater determinant as parameters (for derivatives).
         minblocks (int): minimum number of VMC steps to take, considering equillibration time.
-        iterations (int): number of VMC steps to attempt.
     '''
     self.system=system
     self.trialfunc=trialfunc
@@ -29,6 +30,7 @@ class VMCWriter:
     self.minblocks=minblocks
     self.nblock=nblock
     self.averages=averages
+    self.optimize_det=optimize_det
 
     self.qmc_abr='VMC'
     self.completed=False
@@ -40,7 +42,7 @@ class VMCWriter:
     else:
       system=self.system
     if type(self.trialfunc) is not str:
-      trialfunc=export_qwalk_trialfunc(self.trialfunc)
+      trialfunc=export_qwalk_trialfunc(self.trialfunc,optimize_det=self.optimize_det)
     else:
       trialfunc=self.trialfunc
 

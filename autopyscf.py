@@ -385,7 +385,7 @@ class PySCFPBCWriter:
 
     if self.remove_linear_dep:
       lincutoff=1e-8 if(self.remove_linear_dep is True) else self.remove_linear_dep
-      outlines+=['m=remove_linear_dep_(m,lindep=%f)'%lincutoff]
+      outlines+=['m=remove_linear_dep_(m,lindep=%e)'%lincutoff]
 
     outlines+=["print('E(HF) =',m.kernel(numpy.array(dm_kpts)))"]
     outlines += ['print ("All_done")']

@@ -223,7 +223,8 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
 
   # Extract.
   # TODO non-Gamma points.
-  crydfs=[pd.DataFrame(np.array(cryeigsys['eigvecs'][(0,0,0)]['real'][s]).T) for s in [0,1]]
+  crydfs=[pd.DataFrame(np.array(e).T) for e in cryeigsys['eigvecs'][(0,0,0)]['real']]
+  #crydfs=[pd.DataFrame(np.array(cryeigsys['eigvecs'][(0,0,0)]['real'][s]).T) for s in [0,1]]
 
   # PySCF basis order (our goal).
   pydf=pd.DataFrame(cell.sph_labels(fmt=False),columns=['atnum','elem','orb','type'])
@@ -247,7 +248,7 @@ def format_eigenstates_cell(cell,cryeigsys,basis_order=None):
   def convert_order(key):
     try: return orbmap[key]
     except KeyError: return None
-  for s in [0,1]:
+  for s in range(len(crydfs)):
     crydfs[s]['type']=crydfs[s]['type'].apply(convert_order)
 
   # Reorder crydf.

@@ -244,9 +244,10 @@ class PySCFPBCWriter:
     self.method='RKS' 
     self.direct_scf_tol=1e-7
     self.spin=0
-    self.gmesh=None
+    self.ke_cutoff=None
     self.xyz=""
     self.latticevec=""
+    self.supercell=[[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]]
     self.kpts=[2,2,2]
     self.basis='bfd_vtz'
     self.remove_linear_dep=False # float for setting tolerance.
@@ -288,10 +289,7 @@ class PySCFPBCWriter:
 
     # Must be done after bdf_library is set.
     if 'cif' in d.keys():
-      if self.supercell is None:
-        self.from_cif(d['cif'])
-      else:
-        self.from_cif(d['cif'],supercell=self.supercell)
+      self.from_cif(d['cif'], supercell=self.supercell)
 
 
   #-----------------------------------------------
@@ -338,23 +336,18 @@ class PySCFPBCWriter:
         "from pyscf.pbc.dft import KUKS as UKS"
       ]
 
-    if self.gmesh is not None:
-      gmesh=["  mesh="+str(self.gmesh)+","]
-    else:
-      gmesh=[]
-
     #The basis
     outlines+=["basis=%s"%basisstr]
     # The cell/molecule
     outlines+=[
         "mol=gto.M(verbose=4,",
-        "  atom='''"+self.xyz+"''',",
-        ]+gmesh+[
-        "  a='''"+str(self.latticevec) +"''',",
-        "  basis=basis,",
-        "  precision=%s,"%self.cell_precision,
-        "  spin=%i,"%self.spin,
-        "  ecp='%s')"%self.ecp,
+        "ke_cutoff="+str(self.ke_cutoff)+",",
+        "atom='''"+self.xyz+"''',",
+        "a='''"+str(self.latticevec) +"''',",
+        "precision=%s,"%self.cell_precision,
+        "basis=basis,",
+        "spin=%i,"%self.spin,
+        "ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge
         ]
     #Set up k-points

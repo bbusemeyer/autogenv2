@@ -103,6 +103,8 @@ class DMCReader:
       bool: If self.results are within error tolerances.
     '''
     completed=True
+    if len(self.output)==0:
+      return False # No results yet.
     if self.output['properties']['total_energy']['error'][0] > self.errtol:
       print("DMC incomplete: (%f) does not meet tolerance (%f)"%\
           (self.output['properties']['total_energy']['error'][0],self.errtol))

@@ -32,19 +32,27 @@ def average_section(opts):
 
 ################################################
 # This can probably use the orbitals' export orbitals routine instead.
-def tbdm_deriv(orbfile,basissec,orbs,mode='obdm'):
+def make_tbdm(orbfile,basissec,orbs,mode='obdm'):
   outlines=[
-        '  average { average_derivative_dm',
-        '    average { tbdm_basis ',
-        '      orbitals {',
-        '        nmo %d'%max(orbs),
-        '        orbfile %s'%orbfile,
-      ]+['        '+line for line in basissec.split('\n')]+[
-        '      }',
-        '      states { %s }'%' '.join(array(orbs).astype(str)),
-        '      mode %s'%mode,
-        '    }',
+        'average { tbdm_basis ',
+        '  orbitals {',
+        '    nmo %d'%max(orbs),
+        '    orbfile %s'%orbfile,
+      ]+['    '+line for line in basissec.split('\n')]+[
         '  }',
+        '  states { %s }'%' '.join(array(orbs).astype(str)),
+        '  mode %s'%mode,
+        '}',
+      ]
+  return '\n'.join(outlines)
+
+################################################
+# This can probably use the orbitals' export orbitals routine instead.
+def make_tbdm_deriv(orbfile,basissec,orbs,mode='obdm'):
+  outlines=[
+        'average { average_derivative_dm',
+      ]+['  '+line for line in make_tbdm(orbfile,basissec,orbs,mode)]+[
+        '}',
       ]
   return '\n'.join(outlines)
 

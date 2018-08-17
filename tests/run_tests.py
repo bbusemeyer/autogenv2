@@ -4,19 +4,20 @@ This is also a good demo of advanced features.
 '''
 
 from crystal import CrystalWriter
+from autopyscf import PySCFWriter,PySCFPBCWriter
 from crystalmanager import CrystalManager
+from pyscfmanager import PySCFManager
 from qwalkmanager import QWalkManager
 from variance import VarianceWriter,VarianceReader
 from linear import LinearWriter,LinearReader
 from dmc import DMCWriter,DMCReader
 from trialfunc import SlaterJastrow
 from autorunner import RunnerPBS
-<<<<<<< HEAD
 import numpy as np
 
 ###################################################################################################################
 # Individual tests.
-=======
+from autorunner import RunnerPBS,PySCFRunnerPBS
 from pickle import load
 import numpy as np
 
@@ -25,7 +26,6 @@ import numpy as np
 
 ###################################################################################################################
 # Individual test definitions.
->>>>>>> master
 def h2_crystal_equil_test():
   jobs=[]
 
@@ -87,6 +87,68 @@ def h2_crystal_equil_test():
         trialfunc=SlaterJastrow(slatman=cman,jastman=lin,kpoint=kidx)
       )
     jobs.append(dmc)
+
+  return jobs
+
+def h2_pyscf_equil_test():
+  jobs=[]
+
+  xyz=open('structures/h2_equil.xyz','r')
+  xyz.readline()  # Remove headers.
+  xyz.readline()
+
+  scfman=PySCFManager(
+      name='scf',
+      path='test_h2eq_py',
+      writer=PySCFWriter({
+          'spin':0,
+          'xyz':xyz.read()
+        }),
+      runner=PySCFRunnerPBS(
+          queue='secondary',
+          nn=1,np=16,
+          walltime='0:01:00'
+        )
+    )
+  jobs.append(scfman)
+
+  var=QWalkManager(
+      name='var',
+      path=scfman.path,
+      writer=VarianceWriter(),
+      reader=VarianceReader(),
+      runner=RunnerPBS(
+          nn=1,np=16,queue='secondary',walltime='0:05:00'
+        ),
+      trialfunc=SlaterJastrow(scfman,kpoint=0)
+    )
+
+  jobs.append(var)
+
+  lin=QWalkManager(
+      name='linear',
+      path=scfman.path,
+      writer=LinearWriter(),
+      reader=LinearReader(),
+      runner=RunnerPBS(
+          nn=1,np=16,queue='secondary',walltime='0:10:00'
+        ),
+      trialfunc=SlaterJastrow(slatman=scfman,jastman=var,kpoint=0)
+    )
+
+  jobs.append(lin)
+
+  dmc=QWalkManager(
+      name='dmc',
+      path=scfman.path,
+      writer=DMCWriter(),
+      reader=DMCReader(),
+      runner=RunnerPBS(
+          nn=1,np=16,queue='secondary',walltime='0:10:00',
+        ),
+      trialfunc=SlaterJastrow(slatman=scfman,jastman=lin)
+    )
+  jobs.append(dmc)
 
   return jobs
 
@@ -226,8 +288,8 @@ def si_pyscf_test():
   jobs=[]
 
   pwriter=PySCFPBCWriter({
-      'gmesh':[16,16,16],
-      'cif':open('si.cif','r').read()
+      'cif':open('structures/si.cif','r').read(),
+      'bfd_library':'../BFD_Library.xml'
     })
   pman=PySCFManager(
       name='scf',
@@ -238,7 +300,7 @@ def si_pyscf_test():
           nn=1,
           np=16,
           walltime='4:00:00'
-        )
+       )
     )
   jobs.append(pman)
 
@@ -268,7 +330,7 @@ def si_pyscf_test():
 
   return jobs
 
-def mno_test():
+def mno_crystal_test():
   ''' Test spinful calculations in PBC and real kpoint sampling. Also test trialfunc dependency. '''
   cwriter=CrystalWriter({
       'xml_name':'../../BFD_Library.xml',
@@ -345,20 +407,24 @@ def quick_crystal():
   jobs+=h2_crystal_stretch_test()
 
   # Spinful crystal
-  jobs+=mno_test()
+  jobs+=mno_crystal_test()
 
   return jobs
 
 def quick_pyscf():
   ''' Fast-running tests of main pyscf features. '''
+  jobs=[]
+
   # Spinless molecule
+  jobs+=h2_pyscf_equil_test()
 
   # Spinless crystal
+  jobs+=si_pyscf_test()
 
   # Spinful molecule
 
   # Spinful crystal
-  return [] #TODO
+  return jobs
 
 def thorough_crystal():
   ''' Longer tests that look over additional crystal features, compared to the quick tests.
@@ -378,6 +444,7 @@ def run_tests():
 
   # Tests that are run.
   jobs+=quick_crystal()
+  jobs+=quick_pyscf()
 
   for job in jobs:
     job.nextstep()
@@ -408,7 +475,7 @@ def check_tests(reffn='refs.json'):
 
   print("#######################################")
   print("### Results of tests ##################" )
-  print("%d jobs failed to match reference."%len(report))
+  print("%d/%d=%f jobs failed to match reference."%(len(report),len(jobs),len(report)/len(jobs)))
   print('\n'.join(report))
 
 def compare_crystal(job,ref):
@@ -425,7 +492,7 @@ def compare_crystal(job,ref):
 
   return issame
 
-def compare_qwalk(job,ref,nsigma=3):
+def compare_qwalk(job,ref,nsigma=2):
   ''' Make sure two qwalk jobs have the same results within error.
   Args:
     job (Manager): What you'd like to check. 
@@ -509,5 +576,5 @@ def grab_job_ref(job):
 
 if __name__=='__main__':
   run_tests()
-  check_tests()
+  #check_tests()
   #update_refs()

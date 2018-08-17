@@ -1,4 +1,4 @@
-from manager_tools import resolve_status, update_attributes
+from autogen_tools import resolve_status, update_attributes
 from autopyscf import PySCFReader,dm_from_chkfile
 from autorunner import PySCFRunnerPBS
 import os

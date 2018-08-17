@@ -73,7 +73,10 @@ class VarianceReader:
       for line in f:
         if 'dispersion' in line:
           ret['sigma_trace'].append(float(line.split()[4]))
-    ret['sigma']=ret['sigma_trace'][-1]
+    if len(ret['sigma_trace'])>0:
+      ret['sigma']=ret['sigma_trace'][-1]
+    else:
+      ret['sigma']=None
     return ret
 
   #------------------------------------------------
@@ -82,8 +85,6 @@ class VarianceReader:
     Returns:
       bool: If self.output are within error tolerances.
     '''
-    if len(self.output)==0:
-      return False
     if len(self.output['sigma_trace']) < self.minsteps:
       print(self.__class__.__name__,": Variance optimize incomplete: number of steps (%f) less than minimum (%f)"%\
           (len(self.output['sigma_trace']),self.minsteps))

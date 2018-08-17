@@ -1,4 +1,4 @@
-from manager_tools import resolve_status, update_attributes, separate_jastrow
+from autogen_tools import resolve_status, update_attributes, separate_jastrow
 from autorunner import RunnerPBS
 import os
 import pickle as pkl
@@ -67,6 +67,7 @@ class QWalkManager:
     # Practically speaking, the run will preserve old `take_keys` and allow new changes to `skip_keys`.
     # This is because you are taking the attributes from the older instance, and copying into the new instance.
 
+    #TODO this forbids all changes to trialfunc's managers even their runners (for instance). Should allows safe changes.
     update_attributes(copyto=self,copyfrom=other,
         skip_keys=['writer','runner','reader','path','logname','name','bundle'],
         take_keys=['restarts','completed','trialfunc','qwfiles'])
@@ -128,7 +129,7 @@ class QWalkManager:
 
     # Ready for bundler or else just submit the jobs as needed.
     if not self.bundle:
-      qsubfile=self.runner.submit(self.path.replace('/','-')+self.name)
+      qsubfile=self.runner.submit()
 
     # Update the file.
     with open(self.pickle,'wb') as outf:

@@ -12,7 +12,7 @@ Run `setup.py`
 Check out the intro folder, which constains a set of jupyter notebooks to help you understand how this package works.
 Alternative python scripts (which are just python downloads of the notebooks) are also there.
 
-You can also checkout `tests/simple_test.py` for a more useful template to build scripts from.
+**You can also checkout `tests` for a several useful templates to make your first scripts.**
 
 # Troubleshooting
 

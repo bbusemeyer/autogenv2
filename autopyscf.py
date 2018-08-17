@@ -94,6 +94,7 @@ class PySCFWriter:
     self.conv_tol=1e-10
     self.max_cycle=50
     self.method='ROHF' 
+    self.density_fit=False
     self.postHF=False   
     self.direct_scf_tol=1e-10
     self.spin=0
@@ -161,7 +162,6 @@ class PySCFWriter:
   #-----------------------------------------------
   def pyscf_input(self,fname,chkfile):
     f=open(fname,'w')
-    add_paths=[]
 
     # Figure out correct default initial guess (if not set).
     if self.dm_generator is None:
@@ -179,6 +179,11 @@ class PySCFWriter:
     else:
       basisstr="'%s'"%self.basis
 
+    if self.density_fit:
+      dfstr='.density_fit()'
+    else:
+      dfstr=''
+
     outlines=[
         "import sys",
         "sys.path.append('%s')"%paths['pyscf'],
@@ -195,7 +200,7 @@ class PySCFWriter:
         "ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge,
         "mol.spin=%i"%self.spin,
-        "m=%s(mol)"%self.method,
+        "m=%s(mol)%s"%(self.method,dfstr),
         "m.max_cycle=%d"%self.max_cycle,
         "m.direct_scf_tol=%g"%self.direct_scf_tol,
         "m.chkfile='%s'"%chkfile,
@@ -242,6 +247,7 @@ class PySCFPBCWriter:
     self.conv_tol=1e-7
     self.max_cycle=50
     self.method='RKS' 
+    self.density_fit=False
     self.direct_scf_tol=1e-7
     self.spin=0
     self.ke_cutoff=None
@@ -306,7 +312,6 @@ class PySCFPBCWriter:
       
   def pyscf_input(self,fname,chkfile):
     f=open(fname,'w')
-    add_paths=[]
 
     if type(self.basis)!=str:
       basisstr=format_basis(self.basis)
@@ -353,9 +358,14 @@ class PySCFPBCWriter:
     #Set up k-points
     outlines+=['kpts=mol.make_kpts('+str(self.kpts) + ')']
     
+    if self.density_fit:
+      dfstr='.density_fit()'
+    else:
+      dfstr=''
+
     #Mean field
     outlines+=[
-        "m=%s(mol,kpts)"%self.method,
+        "m=%s(mol,kpts)%s"%(self.method,dfstr),
         "m.max_cycle=%d"%self.max_cycle,
         "m.direct_scf_tol=%g"%self.direct_scf_tol,
         "m.chkfile='%s'"%chkfile,

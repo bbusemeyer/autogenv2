@@ -20,6 +20,7 @@ class PySCFWriter:
     self.conv_tol=1e-10
     self.max_cycle=50
     self.method='ROHF' 
+    self.density_fit=False
     self.postHF=False   
     self.direct_scf_tol=1e-10
     self.pyscf_path=[]
@@ -100,6 +101,11 @@ class PySCFWriter:
         print(self.__class__.__name__,": Warning--default guess not set for method=%s.\n Trying UHF."%self.method)
         self.dm_generator=dm_from_uhf_minao()
 
+    if self.density_fit:
+      dfstr='.density_fit()'
+    else:
+      dfstr=''
+
     for i in self.pyscf_path:
       add_paths.append("sys.path.append('"+i+"')")
     outlines=[
@@ -117,7 +123,7 @@ class PySCFWriter:
         "ecp='%s')"%self.ecp,
         "mol.charge=%i"%self.charge,
         "mol.spin=%i"%self.spin,
-        "m=%s(mol)"%self.method,
+        "m=%s(mol)%s"%(self.method,dfstr),
         "m.max_cycle=%d"%self.max_cycle,
         "m.direct_scf_tol=%g"%self.direct_scf_tol,
         "m.chkfile='%s'"%chkfile,

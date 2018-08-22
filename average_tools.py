@@ -24,6 +24,10 @@ def average_section(opts):
     outlines=[
         "  average { region_fluctuation maxn %i } "%opts['maxn']
         ]
+  elif opts['name']=='sk':
+    outlines=[
+        "  average { sk }"
+      ]
   else:
     raise NotImplementedError("""
     '%s' is not implemented in autogen yet: 

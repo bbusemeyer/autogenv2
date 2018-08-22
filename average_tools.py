@@ -39,7 +39,8 @@ def check_opts(opts):
   ''' Make sure options are set completely.'''
   check={'average_derivative_dm': ['basis'],
          'region_fluctuation':['maxn'],
-         'tbdm':['basis']
+         'tbdm':['basis'],
+         'sk':[]
          }
   for key in check[opts['name']]:
     assert key in opts.keys(),"""

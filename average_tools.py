@@ -51,7 +51,7 @@ def make_tbdm(orbfile,basissec,orbs,mode='obdm'):
 def make_tbdm_deriv(orbfile,basissec,orbs,mode='obdm'):
   outlines=[
         'average { average_derivative_dm',
-      ]+['  '+line for line in make_tbdm(orbfile,basissec,orbs,mode)]+[
+      ]+['  '+line for line in make_tbdm(orbfile,basissec,orbs,mode).split('\n')]+[
         '}',
       ]
   return '\n'.join(outlines)

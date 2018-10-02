@@ -245,49 +245,42 @@ class CrystalManager:
     self.creader.write_summary()
     
   #------------------------------------------------
-  def export_qwalk(self):
-    ''' Export QWalk input files into current directory.
+  def ready_properties(self):
+    ''' Run properties for WF exporting.
     Returns:
       bool: whether it was successful.'''
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
     ready=False
-    if len(self.qwfiles['slater'])==0:
-      self.nextstep()
+    self.nextstep()
 
-      if not self.completed:
-        return False
+    if not self.completed:
+      return False
 
-      cwd=os.getcwd()
-      os.chdir(self.path)
+    cwd=os.getcwd()
+    os.chdir(self.path)
 
-      print(self.logname,": %s attempting to generate QWalk files."%self.name)
+    # Check on the properties run
+    status=resolve_status(self.prunner,self.preader,self.propoutfn)
+    print(self.logname,": properties status= %s"%(status))
+    if status=='not_started':
+      ready=False
+      self.prunner.add_command("cp %s INPUT"%self.propinpfn)
+      self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
 
-      # Check on the properties run
-      status=resolve_status(self.prunner,self.preader,self.propoutfn)
-      print(self.logname,": properties status= %s"%(status))
-      if status=='not_started':
-        ready=False
-        self.prunner.add_command("cp %s INPUT"%self.propinpfn)
-        self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
+      if not self.bundle:
+        qsubfile=self.prunner.submit()
+    elif status=='ready_for_analysis':
+      self.preader.collect(self.propoutfn)
 
-        if not self.bundle:
-          qsubfile=self.prunner.submit()
-      elif status=='ready_for_analysis':
-        self.preader.collect(self.propoutfn)
-
-      if self.preader.completed:
-        ready=True
-        print(self.logname,": converting crystal to QWalk input now.")
-        self.qwfiles=crystal2qmc.convert_crystal(base=self.name,propoutfn=self.propoutfn)
-      else:
-        ready=False
-        print(self.logname,": conversion postponed because properties is not finished.")
-
-      os.chdir(cwd)
-    else:
+    if self.preader.completed:
       ready=True
+      print(self.logname,": properties completed successfully.")
+    else:
+      ready=False
+      print(self.logname,": properties run incomplete.")
 
+    os.chdir(cwd)
     self.update_pickle()
 
     return ready

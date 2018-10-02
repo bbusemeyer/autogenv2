@@ -251,7 +251,7 @@ class System:
     Returns:
       Jastrow: Jastrow object.
     '''
-    from Trialfunc import Jastrow 
+    from trialfunc import Jastrow 
 
     if threebody: raise NotImplementedError("Should be simple to add three-body, but haven't bothered yet.")
       

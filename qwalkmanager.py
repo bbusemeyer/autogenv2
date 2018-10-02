@@ -3,6 +3,7 @@ from autorunner import RunnerPBS
 import os
 import pickle as pkl
 from autopaths import paths
+from trialfunc import export_qwalk_trialfunc
 
 #######################################################################
 class QWalkManager:
@@ -98,7 +99,7 @@ class QWalkManager:
     # Check dependency is completed first.
     if self.writer.trialfunc=='':
       print(self.logname,": checking trial function.")
-      self.writer.trialfunc=self.trialfunc.export(self.path)
+      self.writer.trialfunc = export_qwalk_trialfunc(self.trialfunc)
 
     # Work on this job.
     cwd=os.getcwd()

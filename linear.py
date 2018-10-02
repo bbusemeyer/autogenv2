@@ -2,7 +2,7 @@ from __future__ import print_function
 import os
 ####################################################
 class LinearWriter:
-  def __init__(self,options={}):
+  def __init__(self,**options):
     ''' Object for producing input into a variance optimization QWalk run. 
     Args:
       options (dict): editable options are as follows.
@@ -12,7 +12,8 @@ class LinearWriter:
         iterations (int): number of VMC steps to attempt.
         macro_iterations (int): Number of optimize calls to make.
     '''
-    self.trialfunc=''
+    self.sys=None
+    self.trialfunc=None
     self.errtol=10
     self.minblocks=0
     self.total_nstep=2048*4 # 2048 gets stuck pretty often.
@@ -56,17 +57,26 @@ class LinearWriter:
     
   #-----------------------------------------------
   def qwalk_input(self,infile):
-    if self.trialfunc=='':
-      print(self.__class__.__name__,": Trial function not ready. Postponing input file generation.")
-      self.completed=False
+    assert self.trialfunc is not None
+
+    # Output all to strings.
+    if type(self.sys) != str:
+      sys = self.sys.export_qwalk_sys()
     else:
-      with open(infile,'w') as f:
-        f.write("method { linear \n")
-        f.write("total_nstep %i \n"%self.total_nstep)
-        f.write("total_fit %i \n"%self.total_fit)
-        f.write("}\n")
-        f.write(self.trialfunc)
-      self.completed=True
+      sys=self.sys
+    if type(self.trialfunc) != str:
+      trialfunc=self.trialfunc.export_trialfunc()
+    else:
+      trialfunc=self.trialfunc
+
+    with open(infile,'w') as f:
+      f.write("method { linear \n")
+      f.write("total_nstep %i \n"%self.total_nstep)
+      f.write("total_fit %i \n"%self.total_fit)
+      f.write("}\n")
+      f.write(sys),
+      f.write(trialfunc)
+    self.completed=True
 
      
 ####################################################
@@ -97,8 +107,9 @@ class LinearReader:
         if 'current energy' in line:
           ret['energy_trace'].append(float(line.split()[4]))
           ret['energy_trace_err'].append(float(line.split()[6]))
-    ret['total_energy']=ret['energy_trace'][-1]
-    ret['total_energy_err']=ret['energy_trace_err'][-1]
+    if len(ret['energy_trace']) > 0:
+      ret['total_energy']=ret['energy_trace'][-1]
+      ret['total_energy_err']=ret['energy_trace_err'][-1]
     return ret
 
   #------------------------------------------------

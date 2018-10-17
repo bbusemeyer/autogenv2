@@ -62,7 +62,7 @@ def crystal2pyscf_cell(
     kred="KRED.DAT",
     cryoutfn="prop.in.o",
     basis='bfd_vtz',
-    mesh=(16,16,16),
+    mesh=None,
     basis_order=None):
   ''' Make a PySCF object with solution from a crystal run.
 

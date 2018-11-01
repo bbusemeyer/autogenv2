@@ -1,7 +1,6 @@
 import numpy as np
 import os 
 
-
 def resolve_status(runner,reader,outfile):
   #Check if the reader is done
   if reader.completed:

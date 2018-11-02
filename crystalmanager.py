@@ -117,7 +117,7 @@ class CrystalManager:
 
     updated=update_attributes(copyto=self.writer,copyfrom=other.writer,
         skip_keys=['maxcycle','edifftol'],
-        take_keys=['completed','modisymm','restart','guess_fort','_elements'])
+        take_keys=['completed','modisymm','restart','guess_fort','guess_fort13','_elements'])
     if updated:
       self.writer.completed=False
 
@@ -134,6 +134,9 @@ class CrystalManager:
     if not self.writer.completed:
       if self.writer.guess_fort is not None:
         sh.copy(self.writer.guess_fort,'fort.20')
+      if self.writer.guess_fort13 is not None:
+        sh.copy(self.writer.guess_fort,'in.fort.13') # save copy in case it's overwritten.
+        sh.copy(self.writer.guess_fort,'fort.13')
       with open(self.crysinpfn,'w') as f:
         self.writer.write_crys_input(self.crysinpfn)
       with open(self.propinpfn,'w') as f:

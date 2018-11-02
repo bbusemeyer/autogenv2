@@ -15,7 +15,6 @@ import os
 # * _elements is a hidden dependency between geom and basis_section
 # * new geom functions must include this dependency, but its not really documented how.
 
-
 class CrystalWriter: 
   def __init__(self,options):
     #Geometry input.
@@ -35,7 +34,13 @@ class CrystalWriter:
     # Initial guess.
     self.initial_spins=[]
     self.guess_fort=None # or, path to a fort.79 or fort.9.
+    self.guess_fort13=None # path to fort.13, activates reduced symmetry guess (GUESSYMP)
     self.spinedit=[] # Spins to flip from guess_fort
+
+    # D or F occupation guess. If any is None it's ignored.
+    self.majority_guess=None # Guess for the initial orbital occupation. See FDOCCUP
+    self.minority_guess=None
+    self.df_basis_element=None # must also know the basis order because crystal is a jerk.
 
     #Numerical convergence parameters
     self.basis_params=[0.2,2,3]
@@ -57,6 +62,7 @@ class CrystalWriter:
     self.edifftol=8
     self.levshift=[]
     self.diis=True
+    self.diis_opts = [] # lines for DIIS.
     self.broyden=[]
     self.anderson=False
     self.smear=0.0001
@@ -99,6 +105,45 @@ class CrystalWriter:
     if 'spinedit' in d:
       assert len(d['spinedit'])==0 or ('guess_fort' in d and d['guess_fort'] is not None),\
           "spinedit requires guess_fort."
+
+  #-----------------------------------------------
+  def apply_fdocc(self):
+    ''' For spin setting, apply the majority and minority occupations for each spin (for FDOCCUP)
+    Args: 
+      spins (list): atomic spin assignments.
+      basis_element (int): position of orbital in the basis. If the d is the 3rd basis set for the atom, this would be 5.
+      majocc (list): ints representing relative occpuations of majority channel d or f orbitals. See FDOCCUP for more.
+      minocc (list): ints representing relative occpuations of minority channel d or f orbitals. See FDOCCUP for more.
+    Returns:
+      str: FDOCCS input section.
+    '''
+    print("Warning: fdocc needs generalization to more than one spin-ful atom.")
+    majocc = ' '.join([str(i) for i in self.majority_guess])
+    minocc = ' '.join([str(i) for i in self.minority_guess])
+
+    if   len(self.majority_guess) == len(self.minority_guess) == 5: lab = 3
+    elif len(self.majority_guess) == len(self.minority_guess) == 5: lab = 4
+    else: raise AssertionError('Majority and minority guess must be for d or f.')
+
+    fdoccs = []
+    nmod = 0
+    for sdex,spin in enumerate(self.initial_spins):
+      if spin == 1:
+        fdoccs.append('%d %d %d'%(sdex+1,self.df_basis_element,lab))
+        fdoccs.append(majocc)
+        fdoccs.append(minocc)
+        nmod += 1
+        break # only need one per species.
+      elif spin == -1:
+        fdoccs.append('%d %d %d'%(sdex+1,self.df_basis_element,lab))
+        fdoccs.append(minocc)
+        fdoccs.append(majocc)
+        nmod += 1
+        break # only need one per species.
+      else:
+        pass
+    fdoccs = ['FDOCCUP',str(nmod)] + fdoccs
+    return '\n'.join(fdoccs)
 
   #-----------------------------------------------
   def crystal_input(self,section4=[]):
@@ -159,14 +204,13 @@ class CrystalWriter:
       outlines+=[self.dftgrid]
     outlines+=["END",
       "SCFDIR",
+      "SAVEPRED",
       "BIPOSIZE",
       str(self.biposize),
       "EXCHSIZE",
       str(self.exchsize),
       "TOLDEE",
       str(self.edifftol),
-      "FMIXING",
-      str(self.fmixing),
       "TOLINTEG",
       ' '.join(map(str,self.tolinteg)),
       "MAXCYCLE",
@@ -181,21 +225,38 @@ class CrystalWriter:
     if len(self.initial_spins)>0:
       outlines+=['ATOMSPIN',str(len(self.initial_spins))]
       outlines+=["%i %i"%(i+1,s) for i,s in enumerate(self.initial_spins)]
+    if len(self.initial_spins)>0 and \
+        self.majority_guess is not None and \
+        self.minority_guess is not None and \
+        self.df_basis_element is not None:
+      outlines+=[self.apply_fdocc()]
     if len(self.spinedit)>0:
       outlines+=['SPINEDIT',str(len(self.spinedit))]
       outlines+=[str(i) for i in self.spinedit]
 
+    outlines += [
+        "FMIXING",
+        str(self.fmixing)
+      ]
     if not self.diis:
-      if self.levshift!=[]:
-        outlines+=["LEVSHIFT"," ".join(map(str,self.levshift))]
-      else:
+      outlines+=[
+          "NODIIS",
+        ]
+      if self.anderson:
+        outlines+=["ANDERSON"]
+      elif len(self.broyden)!=0:
         outlines+=["BROYDEN"," ".join(map(str,self.broyden))]
-
-    if self.anderson and len(self.broyden)==0 and not self.diis:
-      outlines+=["ANDERSON"]
+      elif self.levshift!=[]:
+        outlines+=["LEVSHIFT"," ".join(map(str,self.levshift))]
+    else:
+      outlines += self.diis_opts
 
     outlines+=section4
-    if self.restart or self.guess_fort is not None:
+    if self.restart:
+      outlines+=["GUESSP"]
+    elif self.guess_fort13 is not None:
+      outlines+=["GUESSYMP"]
+    elif self.guess_fort is not None:
       outlines+=["GUESSP"]
     outlines+=["END"]
 

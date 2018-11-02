@@ -6,15 +6,13 @@ from autopaths import paths
 
 #######################################################################
 class QWalkManager:
-  def __init__(self,writer,reader,runner=None,trialfunc=None,
+  def __init__(self,writer,reader,runner=None,
       name='qw_run',path=None,bundle=False):
     ''' QWalkManager managers the writing of a QWalk input files, it's running, and keeping track of the results.
     Args:
       writer (qwalk writer): writer for input.
       reader (qwalk reader): to read job.
       runner (Runner object): to run job.
-      trialfunc (TrialFunction): TrialFunction object for generating trail function input. 
-        Note: This is only used if write.trailfunc arguement==''. 
       name (str): identifier for this job. This names the files associated with run.
       path (str): directory where this manager is free to store information.
       bundle (bool): False - submit jobs. True - dump job commands into a script for a bundler to run.
@@ -35,7 +33,6 @@ class QWalkManager:
 
     self.writer=writer
     self.reader=reader
-    self.trialfunc=trialfunc
     if runner is not None: self.runner=runner
     else: self.runner=RunnerPBS()
     self.bundle=bundle
@@ -70,7 +67,7 @@ class QWalkManager:
     #TODO this forbids all changes to trialfunc's managers even their runners (for instance). Should allows safe changes.
     update_attributes(copyto=self,copyfrom=other,
         skip_keys=['writer','runner','reader','path','logname','name','bundle'],
-        take_keys=['restarts','completed','trialfunc','qwfiles'])
+        take_keys=['restarts','completed','qwfiles'])
 
     # Update queue settings, but save queue information.
     update_attributes(copyto=self.runner,copyfrom=other.runner,
@@ -94,11 +91,6 @@ class QWalkManager:
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
     print(self.logname,": next step.")
-
-    # Check dependency is completed first.
-    if self.writer.trialfunc=='':
-      print(self.logname,": checking trial function.")
-      self.writer.trialfunc=self.trialfunc.export(self.path)
 
     # Work on this job.
     cwd=os.getcwd()

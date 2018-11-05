@@ -60,15 +60,8 @@ class CrystalManager:
     self.restarts=0
     self.completed=False
     self.bundle=bundle
-    self.qwfiles={ 
-        'kpoints':[],
-        'basis':'',
-        'jastrow2':'',
-        'orbplot':{},
-        'orb':{},
-        'sys':{},
-        'slater':{}
-      }
+    self.qwalk_orbs=None
+    self.qwalk_sys=None
 
     # Smart error detection.
     self.trylev=trylev
@@ -97,7 +90,7 @@ class CrystalManager:
         skip_keys=['writer','runner','creader','preader','prunner','lev','savebroy',
                    'path','logname','name',
                    'trylev','max_restarts','bundle'],
-        take_keys=['restarts','completed','qwfiles','bundle_ready','scriptfile'])
+        take_keys=['restarts','completed','qwalk_orbs','qwalk_sys','bundle_ready','scriptfile'])
 
     # Update queue settings, but save queue information.
     update_attributes(copyto=self.runner,copyfrom=other.runner,
@@ -243,10 +236,6 @@ class CrystalManager:
     with open(self.path+self.pickle,'wb') as outf:
       pkl.dump(self,outf)
 
-  #----------------------------------------
-  def write_summary(self):
-    self.creader.write_summary()
-    
   #------------------------------------------------
   def ready_properties(self):
     ''' Run properties for WF exporting.
@@ -287,7 +276,30 @@ class CrystalManager:
     self.update_pickle()
 
     return ready
-    
+
+  #----------------------------------------
+  def pack_qwalk(self,maxbands=(None,None)):
+    ''' Pack objects for qwalk output generation.
+    Args:
+      maxbands (tuple): max bands in each spin channel to read.
+    Returns:
+      bool: whether it was successful.'''
+    from crystal2qmc import pack_objects
+
+    self.recover(pkl.load(open(self.path+self.pickle,'rb')))
+
+    ready = False
+    self.nextstep()
+    if not self.completed:
+      return False
+
+    cwd = os.getcwd()
+    if self.qwalk_sys is None or self.qwalk_orbs is None:
+      print(self.logname,": Generating qwalk objects (will take some time...set maxbands to make faster)")
+      self.qwalk_sys,self.qwalk_orbs = pack_objects(maxbands=maxbands)
+
+    return True
+
   #----------------------------------------
   def status(self):
     if self.completed:

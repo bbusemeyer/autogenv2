@@ -1,11 +1,13 @@
-from autogen_tools import resolve_status, update_attributes
-from autopyscf import PySCFReader,dm_from_chkfile
-from autorunner import PySCFRunnerPBS
+import autogenv2
+from autogenv2.autogen_tools import resolve_status, update_attributes
+from autogenv2.autorunner import PySCFRunnerPBS
+from autogenv2.autopaths import paths
+import qwalk_objects
+from qwalk_objects.autopyscf import PySCFReader,dm_from_chkfile
 import os
 import shutil as sh 
 import pickle as pkl
 import pyscf2qwalk
-from autopaths import paths
 
 class PySCFManager:
   def __init__(self,writer,reader=None,runner=None,name='psycf_run',path=None,bundle=False):

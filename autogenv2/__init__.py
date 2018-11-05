@@ -6,9 +6,8 @@ from autogenv2 import autoutil
 from autogenv2 import bundler
 from autogenv2 import convertermanager
 from autogenv2 import crystalmanager
-from autogenv2 import pyscfmanager
+#from autogenv2 import pyscfmanager
 from autogenv2 import qwalkmanager
-from autogenv2 import setup
 from autogenv2 import submitter
 
 __all__=[
@@ -19,8 +18,6 @@ __all__=[
     "bundler",
     "convertermanager",
     "crystalmanager",
-    "pyscfmanager",
     "qwalkmanager",
-    "setup",
     "submitter"
   ]

@@ -1,8 +1,0 @@
-# These are the paths for my laptop! I'm sure they're different for you, so update these so they're right.
-# If you don't have them, just leave it as-is, but you won't be able to use autogen for that program.
-Pcrystal: /u/sciteam/busemeye/bin/Pcrystal
-Pproperties: /u/sciteam/busemeye/bin/Pproperties
-crystal: /u/sciteam/busemeye/bin/crystal
-properties: /u/sciteam/busemeye/bin/properties
-pyscf: /u/sciteam/busemeye/programs/pyscf
-qwalk: /u/sciteam/busemeye/bin/qwalk

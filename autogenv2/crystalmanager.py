@@ -1,10 +1,11 @@
-from autogen_tools import resolve_status, update_attributes
+import autogenv2
+from autogenv2.autogen_tools import resolve_status, update_attributes
+from autogenv2.autorunner import RunnerPBS
+from autogenv2.autopaths import paths
 import qwalk_objects as obj
-from autorunner import RunnerPBS
 import os
 import pickle as pkl
 import shutil as sh
-from autopaths import paths
 
 class CrystalManager:
   """ Internal class managing process of running a DFT job though crystal.

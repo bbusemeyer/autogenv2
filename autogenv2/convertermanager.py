@@ -1,15 +1,15 @@
-from autogen_tools import resolve_status, update_attributes
+import autogenv2
+from autogenv2.autogen_tools import resolve_status, update_attributes
+from autogenv2.autopaths import paths
 import qwalk_objects as obj
-from autorunner import RunnerPBS
 import os
 import pickle as pkl
 import shutil as sh
-from autopaths import paths
 
 class ConverterManager:
   """ Internal class managing process of running a DFT job though crystal.
   Has authority over file names associated with this task.""" 
-  def __init__(self,realonly=True,maxbands=(None,None),name='converter',path=None)
+  def __init__(self,realonly=True,maxbands=(None,None),name='converter',path=None):
     ''' CrystalManager manages the writing of a Crystal input file, it's running, and keeping track of the results.
       Args:
         name (str): identifier for this job. This names the files associated with run.

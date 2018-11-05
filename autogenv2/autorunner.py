@@ -4,7 +4,8 @@ import sys
 import numpy as np
 import subprocess as sub
 import shutil
-import submitter
+import autogenv2
+from autogenv2 import submitter
 
 ####################################################
 class RunnerLocal:

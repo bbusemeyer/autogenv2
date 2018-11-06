@@ -27,12 +27,22 @@ def set_attribute(pickle,attr,val):
   man.__dict__[attr]=val
   pkl.dump(man,open(pickle,'wb'))
 
+def set_queueid(pickle,queueid):
+  man=pkl.load(open(pickle,'rb'))
+  man.runner.queueid.append(str(queueid))
+  pkl.dump(man,open(pickle,'wb'))
+
 if __name__=='__main__':
 
   parser=argparse.ArgumentParser("Autogen untilities.")
   parser.add_argument('manager',type=str,help='Pickle file to look at.')
+  parser.add_argument('-q','--queueid',default=-1,help='Append this queueid to runner.')
   # Can add more options as needed.
 
   args=parser.parse_args()
-  get_info(args.manager)
+
+  if args.queueid != -1:
+    set_queueid(args.manager,args.queueid)
+  else:
+    get_info(args.manager)
   

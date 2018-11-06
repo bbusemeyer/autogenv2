@@ -1,7 +1,8 @@
 import autogenv2
 from autogenv2.autogen_tools import resolve_status, update_attributes
 from autogenv2.autopaths import paths
-import qwalk_objects as obj
+import qwalk_objects
+from qwalk_objects.crystal2qmc import pack_objects
 import os
 import pickle as pkl
 import shutil as sh
@@ -9,7 +10,7 @@ import shutil as sh
 class ConverterManager:
   """ Internal class managing process of running a DFT job though crystal.
   Has authority over file names associated with this task.""" 
-  def __init__(self,realonly=True,maxbands=(None,None),name='converter',path=None):
+  def __init__(self,spin=0,realonly=True,maxbands=(None,None),name='converter',path=None):
     ''' CrystalManager manages the writing of a Crystal input file, it's running, and keeping track of the results.
       Args:
         name (str): identifier for this job. This names the files associated with run.
@@ -26,6 +27,11 @@ class ConverterManager:
     self.path=path
 
     self.logname="%s@%s"%(self.__class__.__name__,self.path+self.name)
+
+    # Options
+    self.maxbands = maxbands
+    self.realonly = realonly
+    self.spin = spin
 
     # Internal variables.
     self.system = None
@@ -50,7 +56,7 @@ class ConverterManager:
 
     update_attributes(copyto=self,copyfrom=other,
         skip_keys=['path','logname','name'],
-        take_keys=['restarts','completed','qwalk_orbs','qwalk_sys','bundle_ready','scriptfile'])
+        take_keys=['restarts','completed','system','orbitals','bundle_ready','scriptfile'])
 
   #----------------------------------------
   def nextstep(self):
@@ -63,7 +69,7 @@ class ConverterManager:
 
     if self.system is None or self.orbitals is None:
       print(self.logname,": converting solutions to qwalk.")
-      self.system, self.orbitals = obj.pack_objects(maxbands=self.maxbands,realonly=self.realonly)
+      self.system, self.orbitals = pack_objects(spin=self.spin,maxbands=self.maxbands,realonly=self.realonly)
 
     # Update the file.
     with open(self.pickle,'wb') as outf:

@@ -72,7 +72,7 @@ class QWalkManager:
     #TODO this forbids all changes to trialfunc's managers even their runners (for instance). Should allows safe changes.
     update_attributes(copyto=self,copyfrom=other,
         skip_keys=['writer','runner','reader','path','logname','name','bundle'],
-        take_keys=['restarts','completed','trialfunc','qwfiles'])
+        take_keys=['restarts','completed'])
 
     # Update queue settings, but save queue information.
     update_attributes(copyto=self.runner,copyfrom=other.runner,
@@ -85,7 +85,7 @@ class QWalkManager:
 
     updated=update_attributes(copyto=self.writer,copyfrom=other.writer,
         skip_keys=['maxcycle','errtol','minblocks','nblock','savetrace'],
-        take_keys=['completed','tmoves','extra_observables','timestep','trialfunc'])
+        take_keys=['completed','tmoves','extra_observables','timestep','sys','trialfunc'])
     if updated:
       self.writer.completed=False
 

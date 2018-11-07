@@ -1,5 +1,5 @@
 import autogenv2
-from autogenv2.autogen_tools import resolve_status, update_attributes
+from autogenv2.manager import resolve_status, update_attributes, Manager
 from autogenv2.autopaths import paths
 import qwalk_objects
 from qwalk_objects.crystal2qmc import pack_objects
@@ -7,7 +7,7 @@ import os
 import pickle as pkl
 import shutil as sh
 
-class ConverterManager:
+class ConverterManager(Manager):
   """ Internal class managing process of running a DFT job though crystal.
   Has authority over file names associated with this task.""" 
   def __init__(self,spin=0,realonly=True,maxbands=(None,None),name='converter',path=None):

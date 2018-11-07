@@ -1,13 +1,14 @@
-import autogenv2
-from autogenv2.autogen_tools import resolve_status, update_attributes
+import numpy as np
+from autogenv2.manager import resolve_status, update_attributes, Manager
 from autogenv2.autorunner import RunnerPBS
 from autogenv2.autopaths import paths
-import qwalk_objects as obj
+from qwalk_objects.crystal import CrystalReader
+from qwalk_objects.propertiesreader import PropertiesReader
 import os
 import pickle as pkl
 import shutil as sh
 
-class CrystalManager:
+class CrystalManager(Manager):
   """ Internal class managing process of running a DFT job though crystal.
   Has authority over file names associated with this task.""" 
   def __init__(self,writer,runner,creader=None,name='crystal_run',path=None, preader=None,prunner=None,
@@ -41,9 +42,9 @@ class CrystalManager:
 
     # Handle reader and runner defaults.
     self.writer=writer
-    if creader is None: self.creader=obj.crystal.CrystalReader()
+    if creader is None: self.creader=CrystalReader()
     else: self.creader=creader
-    if preader is None: self.preader=obj.propertiesreader.PropertiesReader()
+    if preader is None: self.preader=PropertiesReader()
     else: self.preader=preader
     if prunner is None: self.prunner=runner
     else: self.prunner=prunner
@@ -67,7 +68,7 @@ class CrystalManager:
 
     # Handle old results if present.
     if os.path.exists(self.path+self.pickle):
-      #print(self.logname,": rebooting old manager.")
+      print(self.logname,": rebooting old manager.")
       old=pkl.load(open(self.path+self.pickle,'rb'))
       self.recover(old)
 
@@ -200,38 +201,6 @@ class CrystalManager:
 
     self.update_pickle()
 
-  #----------------------------------------
-  def submit(self):
-    ''' Submit any work and update the manager.'''
-    qsubfile=self.runner.submit()
-
-    self.update_pickle()
-
-    return qsubfile
-
-  #----------------------------------------
-  def release_commands(self):
-    ''' Release the runner of any commands it was tasked with and update the manager.'''
-    commands=self.runner.release_commands()
-    self.update_pickle()
-
-    return commands
-
-  #------------------------------------------------
-  def update_queueid(self,qid):
-    ''' If a bundler handles the submission, it can update the queue info with this.
-    Args:
-      qid (str): new queue id from submitting a job. The Manager will check if this is running.
-    '''
-    self.runner.queueid.append(qid)
-    self.update_pickle()
-
-  #------------------------------------------------
-  def update_pickle(self):
-    ''' If you make direct changes to the internals of the pickle, you need to call this to insure they are saved.'''
-    with open(self.path+self.pickle,'wb') as outf:
-      pkl.dump(self,outf)
-
   #------------------------------------------------
   def ready_properties(self):
     ''' Run properties for WF exporting.
@@ -274,9 +243,46 @@ class CrystalManager:
     return ready
 
   #----------------------------------------
-  def status(self):
-    if self.completed:
-      return 'ok'
-    else:
-      return 'not_finished'
+  def export_results(self):
+    ''' Combine input and results into convenient dict.'''
+    res = {}
+    spins_consistent = True
+    if self.writer.spin_polarized:
+      coarse_moments = coarsen_moments(self.creader.output['mag_moments'])
+      if (coarse_moments != np.array(self.writer.initial_spins)).any():
+        print("Spin moments changed from initial setting.")
+        print("Inital setting: {}".format(np.array(self.writer.initial_spins)))
+        print("Current spins:  {}".format(coarse_moments))
+        spins_consistent = False
+    res['spins_consistent'] = (spins_consistent)
 
+    res['manager'] = self.__class__.__name__
+    res['path'] = (self.path)
+    res['name'] = (self.name)
+    res['completed'] = (self.creader.completed)
+    res['initial_spins'] = (self.writer.initial_spins)
+    res['majority_guess'] = (self.writer.majority_guess)
+    res['minority_guess'] = (self.writer.minority_guess)
+    res['supercell'] = (self.writer.supercell)
+    res['functional'] = (self.writer.functional)
+    res['diis'] = (self.writer.diis)
+    res['diis_opts'] = (self.writer.diis_opts)
+    res['kmesh'] = (self.writer.kmesh)
+    res['tolinteg'] = (self.writer.tolinteg)
+    res['xml'] = (self.writer.xml_name)
+    for prop in ['total_energy','mag_moments','atomic_charges']:
+      if prop in self.creader.output:
+        res[prop] = (self.creader.output[prop])
+        #print(self.creader.output[prop])
+        #print("  Found %s."%prop)
+      else:
+        res[prop] = (None)
+        #print("  Didn't find %s."%prop)
+    return res
+
+def coarsen_moments(moments,cutoff_to_zero=0.5):
+  moments = np.array(moments)
+  coarse = np.zeros(moments.shape,dtype=int)
+  coarse[moments > cutoff_to_zero] = 1
+  coarse[moments < -cutoff_to_zero] = -1
+  return coarse

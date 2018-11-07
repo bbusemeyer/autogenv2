@@ -1,5 +1,5 @@
 import autogenv2
-from autogenv2.autogen_tools import resolve_status, update_attributes
+from autogenv2.manager import resolve_status, update_attributes, Manager
 from autogenv2.autorunner import RunnerPBS
 from autogenv2.autopaths import paths
 import qwalk_objects as obj
@@ -7,7 +7,7 @@ import os
 import pickle as pkl
 
 #######################################################################
-class QWalkManager:
+class QWalkManager(Manager):
   def __init__(self,writer,reader,runner=None,trialfunc=None,
       name='qw_run',path=None,bundle=False):
     ''' QWalkManager managers the writing of a QWalk input files, it's running, and keeping track of the results.
@@ -138,30 +138,6 @@ class QWalkManager:
       pkl.dump(self,outf)
 
     os.chdir(cwd)
-
-  #------------------------------------------------
-  def update_queueid(self,qid):
-    ''' If a bundler handles the submission, it can update the queue info with this.
-    Args:
-      qid (str): new queue id from submitting a job. The Manager will check if this is running.
-    '''
-    self.runner.queueid.append(qid)
-    self._runready=False # After running, we won't run again without more analysis.
-
-    # Update the file.
-    with open(self.path+self.pickle,'wb') as outf:
-      pkl.dump(self,outf)
-
-  #----------------------------------------
-  def status(self):
-    ''' Check if this Manager has completed all it's tasks.
-    Returns:
-      str: 'ok' or 'not_finished'.
-    '''
-    if self.reader.completed:
-      return 'ok'
-    else:
-      return 'not_finished'
 
   #----------------------------------------
   def collect(self):

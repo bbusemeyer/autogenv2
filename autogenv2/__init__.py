@@ -1,5 +1,5 @@
 
-from autogenv2 import autogen_tools
+from autogenv2 import manager
 from autogenv2 import autopaths
 from autogenv2 import autorunner
 from autogenv2 import autoutil

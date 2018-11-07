@@ -79,7 +79,7 @@ class Manager:
     self.update_pickle()
 
   #----------------------------------------
-  def export_results(self):
+  def export_record(self):
     return {
         'manager':self.__class__.__name__,
         'name':self.name,
@@ -141,10 +141,10 @@ def update_attributes(copyto,copyfrom,skip_keys=[],take_keys=[]):
       #print("Skipping key (%s)"%key)
       pass
     elif key not in copyto.__dict__.keys():
-      print("Warning: Object update. An attribute (%s) was skipped because it doesn't exist in both objects."%key)
+      print("Warning: Object update for %s. An attribute (%s) was skipped because it doesn't exist in both objects."%(key,copyto.__class__.__name__))
     elif not deep_compare(copyto.__dict__[key],copyfrom.__dict__[key]):
       if key not in take_keys:
-        print("Warning: update to attribute (%s) cancelled, because it requires job to be rerun."%key)
+        print("Warning: update to %s for attribute (%s) cancelled, because it requires job to be rerun."%(key,copyto.__class__.__name__))
       else:
         #print("Copy",key)
         copyto.__dict__[key]=copyfrom.__dict__[key]

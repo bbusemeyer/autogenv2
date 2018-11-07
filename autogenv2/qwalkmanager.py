@@ -178,3 +178,22 @@ class QWalkManager(Manager):
     with open(self.path+self.pickle,'wb') as outf:
       pkl.dump(self,outf)
     return True
+  
+  def export_record(self):
+    ''' Combine input and output into convenient run record.'''
+    res = {}
+    res['path'] = self.path
+    res['name'] = self.name
+    res['manager'] = self.__class__.__name__
+    res['completed'] = self.completed
+    res['states'] = self.writer.trialfunc.slater.states
+    res['coefs'] = self.writer.trialfunc.slater.weights
+
+    if 'properties' in self.reader.output:
+      res['total_energy'] = self.reader.output['properties']['total_energy']['value'][0]
+      res['total_energy_err'] = self.reader.output['properties']['total_energy']['error'][0]
+      res['basis'] = self.reader.output['properties']['tbdm_basis']['states']
+      res['tbdm'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')]
+      res['tbdm_err'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')]
+
+    return res

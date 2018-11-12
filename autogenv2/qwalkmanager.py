@@ -1,8 +1,7 @@
-import autogenv2
 from autogenv2.manager import resolve_status, update_attributes, Manager
 from autogenv2.autorunner import RunnerPBS
 from autogenv2.autopaths import paths
-import qwalk_objects as obj
+from qwalk_objects.trialfunc import export_qwalk_trialfunc,separate_jastrow,Jastrow
 import os
 import pickle as pkl
 
@@ -45,11 +44,6 @@ class QWalkManager(Manager):
     self.completed=False
     self.infile=name
     self.outfile="%s.o"%self.infile
-    # Note: qwfiles stores file names of results, used for exporting trial wave functions.
-    self.qwfiles={ 
-        'jastrow2':'',
-        'wfout':''
-      }
     self.stdout="%s.out"%self.infile
 
     # Handle old results if present.
@@ -100,7 +94,7 @@ class QWalkManager(Manager):
     # Check dependency is completed first.
     if self.writer.trialfunc=='':
       print(self.logname,": checking trial function.")
-      self.writer.trialfunc = obj.trialfunc.export_qwalk_trialfunc(self.trialfunc)
+      self.writer.trialfunc = export_qwalk_trialfunc(self.trialfunc)
 
     # Work on this job.
     cwd=os.getcwd()
@@ -150,8 +144,8 @@ class QWalkManager(Manager):
       pkl.dump(self,outf)
 
   #----------------------------------------
-  def export_qwalk(self):
-    ''' Store resulting wave function into self.qwfiles['wfout']. Extract Jastrow and store in self.qwfiles['jastrow2']
+  def export_jastrow(self,optimizebasis=True,freezeall=False):
+    ''' Make a Jastrow function from any resulting trial function optimization.
     Returns:
       bool: Whether it was successful.'''
     # Theoretically more than just Jastrow can be provided, but practically that's the only type of wavefunction we tend to export.
@@ -159,25 +153,11 @@ class QWalkManager(Manager):
     # Recover old data.
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
-    assert self.writer.qmc_abr!='dmc',"DMC doesn't provide a wave function."
+    wfout = self.path+self.outfile.replace('.o','.wfout')
+    if not self.completed or not os.path.exists(wfout):
+      raise AssertionError("QWalk run not ready, or doesn't make a Jastrow.")
 
-    if self.qwfiles['wfout']=='':
-      self.nextstep()
-      if not self.completed:
-        return False
-      print(self.logname,": %s generating QWalk files."%self.name)
-      cwd=os.getcwd()
-      os.chdir(self.path)
-      self.qwfiles['wfout']="%s.wfout"%self.infile
-      newjast=obj.trialfunc.separate_jastrow(self.qwfiles['wfout'])
-      self.qwfiles['jastrow2']="%s.jast"%self.infile
-      with open(self.qwfiles['jastrow2'],'w') as outf:
-        outf.write(newjast)
-      os.chdir(cwd)
-
-    with open(self.path+self.pickle,'wb') as outf:
-      pkl.dump(self,outf)
-    return True
+    return Jastrow(separate_jastrow(wfout,optimizebasis=optimizebasis,freezeall=freezeall))
   
   def export_record(self):
     ''' Combine input and output into convenient run record.'''

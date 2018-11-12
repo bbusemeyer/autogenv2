@@ -141,10 +141,10 @@ def update_attributes(copyto,copyfrom,skip_keys=[],take_keys=[]):
       #print("Skipping key (%s)"%key)
       pass
     elif key not in copyto.__dict__.keys():
-      print("Warning: Object update for %s. An attribute (%s) was skipped because it doesn't exist in both objects."%(key,copyto.__class__.__name__))
+      print("Warning: Object update for %s. An attribute (%s) was skipped because it doesn't exist in both objects."%(copyto.__class__.__name__,key))
     elif not deep_compare(copyto.__dict__[key],copyfrom.__dict__[key]):
       if key not in take_keys:
-        print("Warning: update to %s for attribute (%s) cancelled, because it requires job to be rerun."%(key,copyto.__class__.__name__))
+        print("Warning: update to %s for attribute (%s) cancelled, because it requires job to be rerun."%(copyto.__class__.__name__,key))
       else:
         #print("Copy",key)
         copyto.__dict__[key]=copyfrom.__dict__[key]

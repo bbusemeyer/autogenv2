@@ -12,7 +12,7 @@ class CrystalManager(Manager):
   """ Internal class managing process of running a DFT job though crystal.
   Has authority over file names associated with this task.""" 
   def __init__(self,writer,runner,creader=None,name='crystal_run',path=None, preader=None,prunner=None,
-      trylev=False,bundle=False,max_restarts=2):
+      bundle=False,max_restarts=2):
     ''' CrystalManager manages the writing of a Crystal input file, it's running, and keeping track of the results.
     Args:
       writer (PySCFWriter): writer for input.
@@ -22,7 +22,6 @@ class CrystalManager(Manager):
       preader (PropertiesReader): Reads properties results, if any (None implies use default reader).
       prunner (runner object): run properties if needed (None implies use same runner as crystal).
       name (str): identifier for this job. This names the files associated with run.
-      trylev (bool): When restarting use LEVSHIFT option to encourage convergence, then do a rerun without LEVSHIFT.
       bundle (bool): Whether you'll use a bundling tool to run these jobs.
       max_restarts (int): maximum number of times you'll allow restarting before giving up (and manually intervening).
     '''
@@ -61,10 +60,8 @@ class CrystalManager(Manager):
     self.bundle=bundle
 
     # Smart error detection.
-    self.trylev=trylev
     self.max_restarts=max_restarts
     self.savebroy=[]
-    self.lev=False
 
     # Handle old results if present.
     if os.path.exists(self.path+self.pickle):
@@ -84,9 +81,9 @@ class CrystalManager(Manager):
     # This is because you are taking the attributes from the older instance, and copying into the new instance.
 
     update_attributes(copyto=self,copyfrom=other,
-        skip_keys=['writer','runner','creader','preader','prunner','lev','savebroy',
+        skip_keys=['writer','runner','creader','preader','prunner','savebroy',
                    'path','logname','name',
-                   'trylev','max_restarts','bundle'],
+                   'max_restarts','bundle'],
         take_keys=['restarts','completed','qwalk_orbs','qwalk_sys','bundle_ready','scriptfile'])
 
     # Update queue settings, but save queue information.
@@ -150,12 +147,6 @@ class CrystalManager(Manager):
         else:
           print(self.logname,": attempting restart (%d previous restarts)."%self.restarts)
           self.writer.restart=True
-          if self.trylev:
-            print(self.logname,": trying LEVSHIFT.")
-            self.writer.levshift=[10,1] # No mercy.
-            self.savebroy=deepcopy(self.writer.broyden)
-            self.writer.broyden=[]
-            self.lev=True
           sh.copy(self.crysinpfn,"%d.%s"%(self.restarts,self.crysinpfn))
           sh.copy(self.crysoutfn,"%d.%s"%(self.restarts,self.crysoutfn))
           sh.copy('fort.79',"%d.fort.79"%(self.restarts))
@@ -165,22 +156,6 @@ class CrystalManager(Manager):
           self.runner.add_command("cp %s INPUT"%self.crysinpfn)
           self.runner.add_task("%s &> %s"%(paths['Pcrystal'],self.crysoutfn))
           self.restarts+=1
-    elif status=='done' and self.lev:
-      # We used levshift to converge. Now let's restart to be sure.
-      print("Recovering from LEVSHIFTer.")
-      self.writer.restart=True
-      self.writer.levshift=[]
-      self.creader.completed=False
-      self.lev=False
-      sh.copy(self.crysinpfn,"%d.%s"%(self.restarts,self.crysinpfn))
-      sh.copy(self.crysoutfn,"%d.%s"%(self.restarts,self.crysoutfn))
-      sh.copy('fort.79',"%d.fort.79"%(self.restarts))
-      self.writer.guess_fort='./fort.79'
-      sh.copy(self.writer.guess_fort,'fort.20')
-      self.writer.write_crys_input(self.crysinpfn)
-      sh.copy(self.crysinpfn,'INPUT')
-      self.runner.add_task("%s &> %s"%(paths['Pcrystal'],self.crysoutfn))
-      self.restarts+=1
 
     # Ready for bundler or else just submit the jobs as needed.
     if not self.bundle:

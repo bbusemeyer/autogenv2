@@ -218,7 +218,7 @@ class CrystalManager(Manager):
     return ready
 
   #----------------------------------------
-  def export_results(self):
+  def export_record(self):
     ''' Combine input and results into convenient dict.'''
     res = {}
     spins_consistent = True

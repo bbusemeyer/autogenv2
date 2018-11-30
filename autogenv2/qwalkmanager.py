@@ -190,10 +190,16 @@ class QWalkManager(Manager):
     res['coefs'] = self.writer.trialfunc.slater.weights
 
     if 'properties' in self.reader.output:
-      res['total_energy'] = self.reader.output['properties']['total_energy']['value'][0]
-      res['total_energy_err'] = self.reader.output['properties']['total_energy']['error'][0]
-      res['basis'] = self.reader.output['properties']['tbdm_basis']['states']
-      res['tbdm'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')]
-      res['tbdm_err'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')]
+      if 'total_energy' in self.reader.output['properties']:
+        res['total_energy'] = self.reader.output['properties']['total_energy']['value'][0]
+        res['total_energy_err'] = self.reader.output['properties']['total_energy']['error'][0]
+      if 'tbdm_basis' in self.reader.output['properties']:
+        res['basis'] = self.reader.output['properties']['tbdm_basis']['states']
+        if 'tbdm' in self.reader.output['properties']['tbdm_basis']:
+          res['tbdm'] = [self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj] for spinj in ('up','down') for spini in ('up','down')]
+          res['tbdm_err'] = [self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj+'_err'] for spinj in ('up','down') for spini in ('up','down')]
+        else:
+          res['tbdm'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')]
+          res['tbdm_err'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')]
 
     return res

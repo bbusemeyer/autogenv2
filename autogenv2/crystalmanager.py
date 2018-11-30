@@ -184,7 +184,6 @@ class CrystalManager(Manager):
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
     ready=False
-    self.nextstep()
 
     if not self.completed:
       return False

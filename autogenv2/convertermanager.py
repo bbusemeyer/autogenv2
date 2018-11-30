@@ -36,6 +36,7 @@ class ConverterManager(Manager):
     # Internal variables.
     self.system = None
     self.orbitals = None
+    self.completed = False
 
     # Handle old results if present.
     if os.path.exists(self.path+self.pickle):
@@ -70,6 +71,9 @@ class ConverterManager(Manager):
     if self.system is None or self.orbitals is None:
       print(self.logname,": converting solutions to qwalk.")
       self.system, self.orbitals = pack_objects(spin=self.spin,maxbands=self.maxbands,realonly=self.realonly)
+      self.completed = True
+    else:
+      self.completed = True
 
     # Update the file.
     with open(self.pickle,'wb') as outf:

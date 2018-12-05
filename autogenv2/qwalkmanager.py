@@ -176,10 +176,10 @@ class QWalkManager(Manager):
       if 'tbdm_basis' in self.reader.output['properties']:
         res['basis'] = self.reader.output['properties']['tbdm_basis']['states']
         if 'tbdm' in self.reader.output['properties']['tbdm_basis']:
-          res['tbdm'] = [self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj] for spinj in ('up','down') for spini in ('up','down')]
-          res['tbdm_err'] = [self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj+'_err'] for spinj in ('up','down') for spini in ('up','down')]
+          res['tbdm'] = [[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj] for spinj in ('up','down')] for spini in ('up','down')]
+          res['tbdm_err'] = [[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj+'_err'] for spinj in ('up','down')] for spini in ('up','down')]
         else:
-          res['tbdm'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')]
-          res['tbdm_err'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')]
+          res['obdm'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')]
+          res['obdm_err'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')]
 
     return res

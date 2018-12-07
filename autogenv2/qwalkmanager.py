@@ -166,8 +166,18 @@ class QWalkManager(Manager):
     res['name'] = self.name
     res['manager'] = self.__class__.__name__
     res['completed'] = self.completed
+
+    # This presupposes slater, but maybe that's ok for now.
     res['states'] = self.writer.trialfunc.slater.states
     res['coefs'] = self.writer.trialfunc.slater.weights
+    res['kweight'] = self.writer.trialfunc.slater.orbitals.kweight
+    res['kpoint'] = self.writer.trialfunc.slater.orbitals.kweight
+
+    # Currently there are different formats for different QMC runs.
+    # TODO unify QMC output formats.
+    if 'total_energy' in self.reader.output:
+      res['total_energy'] = self.reader.output['total_energy']
+      res['total_energy_err'] = self.reader.output['total_energy_err']
 
     if 'properties' in self.reader.output:
       if 'total_energy' in self.reader.output['properties']:

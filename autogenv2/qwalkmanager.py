@@ -74,11 +74,11 @@ class QWalkManager(Manager):
         take_keys=['queueid'])
 
     update_attributes(copyto=self.reader,copyfrom=other.reader,
-        skip_keys=[],
+        skip_keys=['errtol','minblocks'],
         take_keys=['completed','output'])
 
     updated=update_attributes(copyto=self.writer,copyfrom=other.writer,
-        skip_keys=['maxcycle','errtol','minblocks','nblock','savetrace'],
+        skip_keys=['maxcycle','nblock','savetrace'],
         take_keys=['completed','tmoves','extra_observables','timestep','sys','trialfunc'])
     if updated:
       self.writer.completed=False
@@ -171,7 +171,7 @@ class QWalkManager(Manager):
     res['states'] = self.writer.trialfunc.slater.states
     res['coefs'] = self.writer.trialfunc.slater.weights
     res['kweight'] = self.writer.trialfunc.slater.orbitals.kweight
-    res['kpoint'] = self.writer.trialfunc.slater.orbitals.kweight
+    res['kpoint'] = self.writer.trialfunc.slater.orbitals.kpoint
 
     # Currently there are different formats for different QMC runs.
     # TODO unify QMC output formats.

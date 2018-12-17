@@ -159,8 +159,13 @@ class QWalkManager(Manager):
 
     return Jastrow(separate_jastrow(wfout,optimizebasis=optimizebasis,freezeall=freezeall))
   
-  def export_record(self):
+  def export_record(self,obdmfunc=None,tbdmfunc=None,obdmerrfunc=None,tbdmerrfunc=None):
     ''' Combine input and output into convenient run record.'''
+    if obdmfunc is None: obdmfunc       = lambda x: x
+    if obdmerrfunc is None: obdmerrfunc = lambda x: x
+    if tbdmfunc is None: tbdmfunc       = lambda x: x
+    if tbdmerrfunc is None: tbdmerrfunc = lambda x: x
+
     res = {}
     res['path'] = self.path
     res['name'] = self.name
@@ -186,10 +191,10 @@ class QWalkManager(Manager):
       if 'tbdm_basis' in self.reader.output['properties']:
         res['basis'] = self.reader.output['properties']['tbdm_basis']['states']
         if 'tbdm' in self.reader.output['properties']['tbdm_basis']:
-          res['tbdm'] = [[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj] for spinj in ('up','down')] for spini in ('up','down')]
-          res['tbdm_err'] = [[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj+'_err'] for spinj in ('up','down')] for spini in ('up','down')]
+          res['tbdm'] = tbdmfunc([[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj] for spinj in ('up','down')] for spini in ('up','down')])
+          res['tbdm_err'] = tbdmerrfunc([[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj+'_err'] for spinj in ('up','down')] for spini in ('up','down')])
         else:
-          res['obdm'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')]
-          res['obdm_err'] = [self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')]
+          res['obdm'] = obdmfunc([self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')])
+          res['obdm_err'] = obdmerrfunc([self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')])
 
     return res

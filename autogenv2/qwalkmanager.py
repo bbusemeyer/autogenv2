@@ -193,7 +193,7 @@ class QWalkManager(Manager):
         if 'tbdm' in self.reader.output['properties']['tbdm_basis']:
           res['tbdm'] = tbdmfunc([[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj] for spinj in ('up','down')] for spini in ('up','down')])
           res['tbdm_err'] = tbdmerrfunc([[self.reader.output['properties']['tbdm_basis']['tbdm'][spini+spinj+'_err'] for spinj in ('up','down')] for spini in ('up','down')])
-        else:
+        if 'obdm' in self.reader.output['properties']['tbdm_basis']:
           res['obdm'] = obdmfunc([self.reader.output['properties']['tbdm_basis']['obdm'][spin] for spin in ('up','down')])
           res['obdm_err'] = obdmerrfunc([self.reader.output['properties']['tbdm_basis']['obdm'][spin+'_err'] for spin in ('up','down')])
 

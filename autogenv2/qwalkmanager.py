@@ -2,6 +2,7 @@ from autogenv2.manager import resolve_status, update_attributes, Manager
 from autogenv2.autorunner import RunnerPBS
 from autogenv2.autopaths import paths
 from qwalk_objects.trialfunc import export_qwalk_trialfunc,separate_jastrow,Jastrow
+from json.decoder import JSONDecodeError
 import os
 import pickle as pkl
 
@@ -112,10 +113,15 @@ class QWalkManager(Manager):
       print(self.logname,": %s status= submitted"%(self.name))
     elif status=="ready_for_analysis":
       #This is where we (eventually) do error correction and resubmits
-      status=self.reader.collect(self.outfile)
+      try:
+        status=self.reader.collect(self.outfile)
+      except JSONDecodeError:
+        status='error'
       if status=='ok':
         print(self.logname,": %s status= %s, task complete."%(self.name,status))
         self.completed=True
+      elif status=='error':
+        print(self.logname,": %s status= %s, json read error implies corruption or input error."%(self.name,status))
       else:
         print(self.logname,": %s status= %s, attempting rerun."%(self.name,status))
         exestr="%s %s &> %s"%(paths['qwalk'],self.infile,self.stdout)

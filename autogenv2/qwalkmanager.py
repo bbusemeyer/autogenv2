@@ -75,11 +75,11 @@ class QWalkManager(Manager):
         take_keys=['queueid'])
 
     update_attributes(copyto=self.reader,copyfrom=other.reader,
-        skip_keys=['errtol','minblocks'],
+        skip_keys=['errtol','minblocks','minblocks','minsteps','sigtol'],
         take_keys=['completed','output'])
 
     updated=update_attributes(copyto=self.writer,copyfrom=other.writer,
-        skip_keys=['maxcycle','nblock','savetrace'],
+        skip_keys=['maxcycle','nblock','savetrace','total_nstep'],
         take_keys=['completed','tmoves','extra_observables','timestep','sys','trialfunc'])
     if updated:
       self.writer.completed=False

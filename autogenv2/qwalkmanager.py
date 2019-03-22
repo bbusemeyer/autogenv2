@@ -85,8 +85,11 @@ class QWalkManager(Manager):
       self.writer.completed=False
 
   #------------------------------------------------
-  def nextstep(self):
-    ''' Perform next step in calculation. trialfunc managers are updated if they aren't completed yet.'''
+  def nextstep(self,qstat=None):
+    ''' Perform next step in calculation. trialfunc managers are updated if they aren't completed yet.
+    Args: 
+      qstat (str): result of qstat call. Used to avoid calling qstat over and over for each manager.
+    '''
     # Recover old data.
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
@@ -105,7 +108,7 @@ class QWalkManager(Manager):
     if not self.writer.completed:
       self.writer.qwalk_input(self.infile)
     
-    status=resolve_status(self.runner,self.reader,self.outfile)
+    status=resolve_status(self.runner,self.reader,self.outfile,qstat=qstat)
     print(self.logname,": %s status= %s"%(self.name,status))
     if status=="not_started" and self.writer.completed:
       exestr="%s %s &> %s"%(paths['qwalk'],self.infile,self.stdout)
@@ -186,14 +189,17 @@ class QWalkManager(Manager):
 
     # Currently there are different formats for different QMC runs.
     # TODO unify QMC output formats.
+    # Linear output.
     if 'total_energy' in self.reader.output:
       res['total_energy'] = self.reader.output['total_energy']
       res['total_energy_err'] = self.reader.output['total_energy_err']
 
+    # VMC/DMC/postprocess.
     if 'properties' in self.reader.output:
       if 'total_energy' in self.reader.output['properties']:
         res['total_energy'] = self.reader.output['properties']['total_energy']['value'][0]
         res['total_energy_err'] = self.reader.output['properties']['total_energy']['error'][0]
+        res['sigma'] = self.reader.output['properties']['total_energy']['sigma'][0]
       if 'tbdm_basis' in self.reader.output['properties']:
         res['basis'] = self.reader.output['properties']['tbdm_basis']['states']
         if 'tbdm' in self.reader.output['properties']['tbdm_basis']:

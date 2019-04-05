@@ -1,19 +1,18 @@
-from autogen_tools import resolve_status, update_attributes
-from crystal import CrystalReader
-from propertiesreader import PropertiesReader
-from autorunner import RunnerPBS
+import numpy as np
+from autogenv2.manager import resolve_status, update_attributes, Manager
+from autogenv2.autorunner import RunnerPBS
+from autogenv2.autopaths import paths
+from qwalk_objects.crystal import CrystalReader
+from qwalk_objects.propertiesreader import PropertiesReader
 import os
 import pickle as pkl
 import shutil as sh
-import crystal2qmc
-from autopaths import paths
 
-class CrystalManager:
+class CrystalManager(Manager):
   """ Internal class managing process of running a DFT job though crystal.
-  Has authority over file names associated with this task."""
-  def __init__(self,writer,runner,creader=None,name='crystal_run',path=None,
-      preader=None,prunner=None,
-      trylev=False,bundle=False,max_restarts=2):
+  Has authority over file names associated with this task.""" 
+  def __init__(self,writer,runner,creader=None,name='crystal_run',path=None, preader=None,prunner=None,
+      bundle=False,max_restarts=2):
     ''' CrystalManager manages the writing of a Crystal input file, it's running, and keeping track of the results.
     Args:
       writer (PySCFWriter): writer for input.
@@ -23,7 +22,6 @@ class CrystalManager:
       preader (PropertiesReader): Reads properties results, if any (None implies use default reader).
       prunner (runner object): run properties if needed (None implies use same runner as crystal).
       name (str): identifier for this job. This names the files associated with run.
-      trylev (bool): When restarting use LEVSHIFT option to encourage convergence, then do a rerun without LEVSHIFT.
       bundle (bool): Whether you'll use a bundling tool to run these jobs.
       max_restarts (int): maximum number of times you'll allow restarting before giving up (and manually intervening).
     '''
@@ -60,25 +58,14 @@ class CrystalManager:
     self.restarts=0
     self.completed=False
     self.bundle=bundle
-    self.qwfiles={ 
-        'kpoints':[],
-        'basis':'',
-        'jastrow2':'',
-        'orbplot':{},
-        'orb':{},
-        'sys':{},
-        'slater':{}
-      }
 
     # Smart error detection.
-    self.trylev=trylev
     self.max_restarts=max_restarts
     self.savebroy=[]
-    self.lev=False
 
     # Handle old results if present.
     if os.path.exists(self.path+self.pickle):
-      #print(self.logname,": rebooting old manager.")
+      print(self.logname,": rebooting old manager.")
       old=pkl.load(open(self.path+self.pickle,'rb'))
       self.recover(old)
 
@@ -94,10 +81,10 @@ class CrystalManager:
     # This is because you are taking the attributes from the older instance, and copying into the new instance.
 
     update_attributes(copyto=self,copyfrom=other,
-        skip_keys=['writer','runner','creader','preader','prunner','lev','savebroy',
+        skip_keys=['writer','runner','creader','preader','prunner','savebroy',
                    'path','logname','name',
-                   'trylev','max_restarts','bundle'],
-        take_keys=['restarts','completed','qwfiles','bundle_ready','scriptfile'])
+                   'max_restarts','bundle'],
+        take_keys=['restarts','completed','qwalk_orbs','qwalk_sys','bundle_ready','scriptfile'])
 
     # Update queue settings, but save queue information.
     update_attributes(copyto=self.runner,copyfrom=other.runner,
@@ -117,12 +104,12 @@ class CrystalManager:
 
     updated=update_attributes(copyto=self.writer,copyfrom=other.writer,
         skip_keys=['maxcycle','edifftol'],
-        take_keys=['completed','modisymm','restart','guess_fort','guess_fort13','_elements'])
+        take_keys=['completed','modisymm','restart','guess_fort','guess_fort13','_elements','boundary'])
     if updated:
       self.writer.completed=False
 
   #----------------------------------------
-  def nextstep(self):
+  def nextstep(self,qstat=None):
     ''' Determine and perform the next step in the calculation.'''
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
@@ -143,7 +130,7 @@ class CrystalManager:
         self.writer.write_prop_input(self.propinpfn)
 
     # Check on the CRYSTAL run
-    status=resolve_status(self.runner,self.creader,self.crysoutfn)
+    status=resolve_status(self.runner,self.creader,self.crysoutfn,qstat=qstat)
     print(self.logname,": status= %s"%(status))
 
     if status=="not_started":
@@ -160,12 +147,6 @@ class CrystalManager:
         else:
           print(self.logname,": attempting restart (%d previous restarts)."%self.restarts)
           self.writer.restart=True
-          if self.trylev:
-            print(self.logname,": trying LEVSHIFT.")
-            self.writer.levshift=[10,1] # No mercy.
-            self.savebroy=deepcopy(self.writer.broyden)
-            self.writer.broyden=[]
-            self.lev=True
           sh.copy(self.crysinpfn,"%d.%s"%(self.restarts,self.crysinpfn))
           sh.copy(self.crysoutfn,"%d.%s"%(self.restarts,self.crysoutfn))
           sh.copy('fort.79',"%d.fort.79"%(self.restarts))
@@ -175,22 +156,6 @@ class CrystalManager:
           self.runner.add_command("cp %s INPUT"%self.crysinpfn)
           self.runner.add_task("%s &> %s"%(paths['Pcrystal'],self.crysoutfn))
           self.restarts+=1
-    elif status=='done' and self.lev:
-      # We used levshift to converge. Now let's restart to be sure.
-      print("Recovering from LEVSHIFTer.")
-      self.writer.restart=True
-      self.writer.levshift=[]
-      self.creader.completed=False
-      self.lev=False
-      sh.copy(self.crysinpfn,"%d.%s"%(self.restarts,self.crysinpfn))
-      sh.copy(self.crysoutfn,"%d.%s"%(self.restarts,self.crysoutfn))
-      sh.copy('fort.79',"%d.fort.79"%(self.restarts))
-      self.writer.guess_fort='./fort.79'
-      sh.copy(self.writer.guess_fort,'fort.20')
-      self.writer.write_crys_input(self.crysinpfn)
-      sh.copy(self.crysinpfn,'INPUT')
-      self.runner.add_task("%s &> %s"%(paths['Pcrystal'],self.crysoutfn))
-      self.restarts+=1
 
     # Ready for bundler or else just submit the jobs as needed.
     if not self.bundle:
@@ -211,94 +176,87 @@ class CrystalManager:
 
     self.update_pickle()
 
-  #----------------------------------------
-  def submit(self):
-    ''' Submit any work and update the manager.'''
-    qsubfile=self.runner.submit()
-
-    self.update_pickle()
-
-    return qsubfile
-
-  #----------------------------------------
-  def release_commands(self):
-    ''' Release the runner of any commands it was tasked with and update the manager.'''
-    commands=self.runner.release_commands()
-    self.update_pickle()
-
-    return commands
-
   #------------------------------------------------
-  def update_queueid(self,qid):
-    ''' If a bundler handles the submission, it can update the queue info with this.
-    Args:
-      qid (str): new queue id from submitting a job. The Manager will check if this is running.
-    '''
-    self.runner.queueid.append(qid)
-    self.update_pickle()
-
-  #------------------------------------------------
-  def update_pickle(self):
-    ''' If you make direct changes to the internals of the pickle, you need to call this to insure they are saved.'''
-    with open(self.path+self.pickle,'wb') as outf:
-      pkl.dump(self,outf)
-
-  #----------------------------------------
-  def write_summary(self):
-    self.creader.write_summary()
-    
-  #------------------------------------------------
-  def export_qwalk(self):
-    ''' Export QWalk input files into current directory.
+  def ready_properties(self):
+    ''' Run properties for WF exporting.
     Returns:
       bool: whether it was successful.'''
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
     ready=False
-    if len(self.qwfiles['slater'])==0:
-      self.nextstep()
 
-      if not self.completed:
-        return False
+    if not self.completed:
+      return False
 
-      cwd=os.getcwd()
-      os.chdir(self.path)
+    cwd=os.getcwd()
+    os.chdir(self.path)
 
-      print(self.logname,": %s attempting to generate QWalk files."%self.name)
+    # Check on the properties run
+    status=resolve_status(self.prunner,self.preader,self.propoutfn)
+    print(self.logname,": properties status= %s"%(status))
+    if status=='not_started':
+      ready=False
+      self.prunner.add_command("cp %s INPUT"%self.propinpfn)
+      self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
 
-      # Check on the properties run
-      status=resolve_status(self.prunner,self.preader,self.propoutfn)
-      print(self.logname,": properties status= %s"%(status))
-      if status=='not_started':
-        ready=False
-        self.prunner.add_command("cp %s INPUT"%self.propinpfn)
-        self.prunner.add_task("%s &> %s"%(paths['Pproperties'],self.propoutfn))
+      if not self.bundle:
+        qsubfile=self.prunner.submit()
+    elif status=='ready_for_analysis':
+      self.preader.collect(self.propoutfn)
 
-        if not self.bundle:
-          qsubfile=self.prunner.submit()
-      elif status=='ready_for_analysis':
-        self.preader.collect(self.propoutfn)
-
-      if self.preader.completed:
-        ready=True
-        print(self.logname,": converting crystal to QWalk input now.")
-        self.qwfiles=crystal2qmc.convert_crystal(base=self.name,propoutfn=self.propoutfn)
-      else:
-        ready=False
-        print(self.logname,": conversion postponed because properties is not finished.")
-
-      os.chdir(cwd)
-    else:
+    if self.preader.completed:
       ready=True
+      print(self.logname,": properties completed successfully.")
+    else:
+      ready=False
+      print(self.logname,": properties run incomplete.")
 
+    os.chdir(cwd)
     self.update_pickle()
 
     return ready
-    
-  #----------------------------------------
-  def status(self):
-    if self.completed:
-      return 'ok'
-    else:
-      return 'not_finished'
 
+  #----------------------------------------
+  def export_record(self):
+    ''' Combine input and results into convenient dict.'''
+    res = {}
+    spins_consistent = True
+    if self.writer.spin_polarized:
+      coarse_moments = coarsen_moments(self.creader.output['mag_moments'])
+      if (coarse_moments != np.array(self.writer.initial_spins)).any():
+        print("Spin moments changed from initial setting.")
+        print("Inital setting: {}".format(np.array(self.writer.initial_spins)))
+        print("Current spins:  {}".format(coarse_moments))
+        spins_consistent = False
+    res['spins_consistent'] = (spins_consistent)
+
+    res['manager'] = self.__class__.__name__
+    res['path'] = (self.path)
+    res['name'] = (self.name)
+    res['completed'] = (self.creader.completed)
+    res['initial_spins'] = (self.writer.initial_spins)
+    res['majority_guess'] = (self.writer.majority_guess)
+    res['minority_guess'] = (self.writer.minority_guess)
+    res['supercell'] = (self.writer.supercell)
+    res['functional'] = (self.writer.functional)
+    res['diis'] = (self.writer.diis)
+    res['diis_opts'] = (self.writer.diis_opts)
+    res['kmesh'] = (self.writer.kmesh)
+    res['tolinteg'] = (self.writer.tolinteg)
+    res['xml'] = (self.writer.xml_name)
+    for prop in ['total_energy','mag_moments','atomic_charges']:
+      if prop in self.creader.output:
+        res[prop] = (self.creader.output[prop])
+        #print(self.creader.output[prop])
+        #print("  Found %s."%prop)
+      else:
+        res[prop] = (None)
+        #print("  Didn't find %s."%prop)
+    return res
+
+def coarsen_moments(moments,cutoff_to_zero=0.5):
+  moments = np.array(moments)
+  coarse = np.zeros(moments.shape,dtype=int)
+  coarse[moments > cutoff_to_zero] = 1
+  coarse[moments < -cutoff_to_zero] = -1
+  return coarse

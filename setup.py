@@ -22,7 +22,7 @@ for key in sorted(keys):
   else:
     print("Didn't find path for %s, either update it in paths.json, or avoid using it with autogen."%key)
 
-with open('autopaths.py','w') as outf:
+with open('autogenv2/autopaths.py','w') as outf:
   outf.write('paths={}'.format(curpaths))
 
 print("Done. autopaths.py should now be up-to-date.")

@@ -1,11 +1,13 @@
-from autogen_tools import resolve_status, update_attributes
-from autopyscf import PySCFReader,dm_from_chkfile
-from autorunner import PySCFRunnerPBS
+import autogenv2
+from autogenv2.autogen_tools import resolve_status, update_attributes
+from autogenv2.autorunner import PySCFRunnerPBS
+from autogenv2.autopaths import paths
+import qwalk_objects
+from qwalk_objects.autopyscf import PySCFReader,dm_from_chkfile
 import os
 import shutil as sh 
 import pickle as pkl
 import pyscf2qwalk
-from autopaths import paths
 
 class PySCFManager:
   def __init__(self,writer,reader=None,runner=None,name='psycf_run',path=None,bundle=False):
@@ -92,7 +94,7 @@ class PySCFManager:
       pkl.dump(self,outf)
     
   #------------------------------------------------
-  def nextstep(self):
+  def nextstep(self,qstat=None):
     ''' Determine and perform the next step in the calculation.'''
     # Recover old data.
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
@@ -104,7 +106,7 @@ class PySCFManager:
     if not self.writer.completed:
       self.writer.pyscf_input(self.driverfn,self.chkfile)
     
-    status=resolve_status(self.runner,self.reader,self.outfile)
+    status=resolve_status(self.runner,self.reader,self.outfile,qstat=qstat)
     print(self.logname,": %s status= %s"%(self.name,status))
 
     if status=="not_started":
@@ -170,7 +172,7 @@ class PySCFManager:
   #----------------------------------------
   def status(self):
     ''' Determine the course of action based on info from reader and runner.'''
-    current_status = resolve_status(self.runner,self.reader,self.outfile)
+    current_status = resolve_status(self.runner,self.reader,self.outfile,qstat=qstat)
     if current_status == 'done':
       return 'ok'
     elif current_status == 'retry':

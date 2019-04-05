@@ -22,7 +22,7 @@ class LocalSubmitter:
   """
 #-------------------------------------------------------
 
-def check_BW_stati(queueids):
+def check_BW_stati(queueids,qstat=None):
   """Utility function to determine the status of a set Blue Waters job.
   Args: 
     queueids (list): list of queueids as string representation of int, e.g. ['4819103','4819104'].
@@ -44,17 +44,18 @@ def check_BW_stati(queueids):
   return 'unknown'
 
 #-------------------------------------------------------
-def check_PBS_stati(queueids):
+def check_PBS_stati(queueids,qstat=None):
   """Utility function to determine the status of a set PBS job.
   Args: 
     queueids (list): list of queueids as string representation of int, e.g. ['4819103','4819104'].
   """
-  try:
-    qstat = sub.check_output(
-        "qstat ", stderr=sub.STDOUT, shell=True
-      ).decode()
-  except sub.CalledProcessError:
-    return "unknown"
+  if qstat is None:
+    try:
+      qstat = sub.check_output(
+          "qstat ", stderr=sub.STDOUT, shell=True
+        ).decode()
+    except sub.CalledProcessError:
+      return "unknown"
   qstat=qstat.split('\n')
   for qid in queueids:
     for line in qstat:

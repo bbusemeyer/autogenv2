@@ -19,7 +19,7 @@ class RunnerLocal:
     self.jobname='none, this runs with out queueing.'
 
   #-------------------------------------
-  def check_status(self):
+  def check_status(self,qstat=None):
     return 'done'
 
   #-------------------------------------
@@ -94,8 +94,8 @@ class RunnerPBS:
     self.queueid=[]
 
   #-------------------------------------
-  def check_status(self):
-    return submitter.check_PBS_stati(self.queueid)
+  def check_status(self,qstat=None):
+    return submitter.check_PBS_stati(self.queueid,qstat=qstat)
 
   #-------------------------------------
   def add_command(self,cmdstr):
@@ -200,7 +200,7 @@ class RunnerBW:
     self.queueid=[]
 
   #-------------------------------------
-  def check_status(self):
+  def check_status(self,qstat=None):
     return submitter.check_BW_stati(self.queueid)
 
   def add_command(self,cmdstr):
@@ -281,7 +281,7 @@ class FakeRunner:
     self.queueid=[]
 
   #-------------------------------------
-  def check_status(self):
+  def check_status(self,qstat=None):
     return 'unknown'
 
   def add_command(self,cmdstr):
@@ -309,7 +309,7 @@ class PySCFRunnerLocal:
     self.queueid=[]
 
   #-------------------------------------
-  def check_status(self):
+  def check_status(self,qstat=None):
     return 'done'
 
   #-------------------------------------

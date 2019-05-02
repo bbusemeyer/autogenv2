@@ -60,7 +60,7 @@ class ConverterManager(Manager):
         take_keys=['restarts','completed','system','orbitals','bundle_ready','scriptfile'])
 
   #----------------------------------------
-  def nextstep(self):
+  def nextstep(self,qstat=None):
     ''' Determine and perform the next step in the calculation.'''
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 

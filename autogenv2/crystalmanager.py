@@ -104,12 +104,12 @@ class CrystalManager(Manager):
 
     updated=update_attributes(copyto=self.writer,copyfrom=other.writer,
         skip_keys=['maxcycle','edifftol'],
-        take_keys=['completed','modisymm','restart','guess_fort','guess_fort13','_elements'])
+        take_keys=['completed','modisymm','restart','guess_fort','guess_fort13','_elements','boundary'])
     if updated:
       self.writer.completed=False
 
   #----------------------------------------
-  def nextstep(self):
+  def nextstep(self,qstat=None):
     ''' Determine and perform the next step in the calculation.'''
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
 
@@ -130,7 +130,7 @@ class CrystalManager(Manager):
         self.writer.write_prop_input(self.propinpfn)
 
     # Check on the CRYSTAL run
-    status=resolve_status(self.runner,self.creader,self.crysoutfn)
+    status=resolve_status(self.runner,self.creader,self.crysoutfn,qstat=qstat)
     print(self.logname,": status= %s"%(status))
 
     if status=="not_started":

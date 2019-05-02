@@ -94,7 +94,7 @@ class PySCFManager:
       pkl.dump(self,outf)
     
   #------------------------------------------------
-  def nextstep(self):
+  def nextstep(self,qstat=None):
     ''' Determine and perform the next step in the calculation.'''
     # Recover old data.
     self.recover(pkl.load(open(self.path+self.pickle,'rb')))
@@ -106,7 +106,7 @@ class PySCFManager:
     if not self.writer.completed:
       self.writer.pyscf_input(self.driverfn,self.chkfile)
     
-    status=resolve_status(self.runner,self.reader,self.outfile)
+    status=resolve_status(self.runner,self.reader,self.outfile,qstat=qstat)
     print(self.logname,": %s status= %s"%(self.name,status))
 
     if status=="not_started":
@@ -172,7 +172,7 @@ class PySCFManager:
   #----------------------------------------
   def status(self):
     ''' Determine the course of action based on info from reader and runner.'''
-    current_status = resolve_status(self.runner,self.reader,self.outfile)
+    current_status = resolve_status(self.runner,self.reader,self.outfile,qstat=qstat)
     if current_status == 'done':
       return 'ok'
     elif current_status == 'retry':

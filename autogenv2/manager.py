@@ -30,7 +30,7 @@ class Manager:
       pkl.dump(self,outf)
 
   #----------------------------------------
-  def nextstep(self):
+  def nextstep(self,qstat=None):
     ''' Redefine to have the manager do something.'''
     pass
 
@@ -87,13 +87,13 @@ class Manager:
       }
 
 ######################################################################
-def resolve_status(runner,reader,outfile):
+def resolve_status(runner,reader,outfile,qstat=None):
   #Check if the reader is done
   if reader.completed:
     return 'done'
 
   #Check if the job is in the queue or running. If so, we just return that.
-  currstat=runner.check_status()
+  currstat=runner.check_status(qstat=qstat)
   if currstat=='running':
     return currstat
   

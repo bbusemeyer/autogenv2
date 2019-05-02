@@ -184,6 +184,9 @@ class QWalkManager(Manager):
     res['kweight'] = self.writer.trialfunc.slater.orbitals.kweight
     res['kpoint'] = self.writer.trialfunc.slater.orbitals.kpoint
 
+    if 'timestep' in self.writer.__dict__:
+      res['timestep'] = self.writer.timestep
+
     # Currently there are different formats for different QMC runs.
     # TODO unify QMC output formats.
     if 'total_energy' in self.reader.output:
